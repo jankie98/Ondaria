@@ -108,6 +108,8 @@ set (SONORA_SESSION_SOURCES
     src/session/Automation.h
     src/session/Freeze.cpp
     src/session/Freeze.h
+    src/session/Racks.cpp
+    src/session/Racks.h
     src/session/Warp.cpp
     src/session/Warp.h
     src/session/Tasks.h
