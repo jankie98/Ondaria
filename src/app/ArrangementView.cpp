@@ -5,6 +5,7 @@
 */
 
 #include "ArrangementView.h"
+#include "Animation.h"
 #include "RecordingUI.h"
 #include "session/Arrangement.h"
 
@@ -55,6 +56,17 @@ ArrangementView::ArrangementView()
 
     for (auto* b : { &backButton, &snapButton, &fitButton })
         addAndMakeVisible (b);
+
+    playhead = std::make_unique<anim::PlayheadOverlay> (
+        [this]() -> std::optional<int>
+        {
+            if (edit == nullptr)
+                return std::nullopt;
+
+            return xForBeat (edit->tempoSequence.toBeats (edit->getTransport().getPosition()).inBeats());
+        },
+        [this] { return edit != nullptr && edit->getTransport().isPlaying(); });
+    addAndMakeVisible (*playhead);
 
     setWantsKeyboardFocus (true);
     startTimerHz (30);
@@ -245,19 +257,27 @@ void ArrangementView::paint (juce::Graphics& g)
 
         auto header = juce::Rectangle<int> (padding, y, headerWidth, laneHeight);
         const bool selected = getSelectedTrack && getSelectedTrack() == t;
+        const auto colour = t->getColour().isTransparent() ? colours::accent : t->getColour();
         g.setColour (selected ? colours::selection : colours::panel);
         g.fillRoundedRectangle (header.toFloat(), metrics::radius);
+        g.setColour (colour.withAlpha (selected ? 0.2f : 0.1f));
+        g.fillRoundedRectangle (header.toFloat(), metrics::radius);
+
+        // Fascia verticale col colore della traccia
+        {
+            juce::Graphics::ScopedSaveState s (g);
+            g.reduceClipRegion (header.withWidth (4));
+            g.setColour (colour);
+            g.fillRoundedRectangle (header.toFloat(), metrics::radius);
+        }
 
         if (selected)
         {
-            g.setColour (colours::accent);
+            g.setColour (colour.brighter (0.3f));
             g.drawRoundedRectangle (header.toFloat().reduced (0.5f), metrics::radius, 1.0f);
         }
 
-        auto text = header.reduced (10, 0).toFloat();
-        g.setColour (t->getColour());
-        g.fillRoundedRectangle (text.removeFromLeft (8.0f).withSizeKeepingCentre (8.0f, 8.0f), 2.0f);
-        text.removeFromLeft (8.0f);
+        auto text = header.reduced (12, 0).toFloat();
         g.setColour (colours::text);
         g.setFont (fonts::ui (12.5f, fonts::Weight::medium));
         g.drawText (t->getName(), text, juce::Justification::centredLeft, true);
@@ -282,6 +302,8 @@ void ArrangementView::paint (juce::Graphics& g)
 
         auto lane = juce::Rectangle<int> (lanes.getX(), y, lanes.getWidth(), laneHeight);
         g.setColour (colours::emptySlot.withAlpha (0.6f));
+        g.fillRoundedRectangle (lane.toFloat(), metrics::radius);
+        g.setColour (colour.withAlpha (selected ? 0.07f : 0.035f));
         g.fillRoundedRectangle (lane.toFloat(), metrics::radius);
 
         g.reduceClipRegion (lanes);
@@ -318,20 +340,6 @@ void ArrangementView::paint (juce::Graphics& g)
         }
 
         g.restoreState();
-    }
-
-    // Testina
-    const auto playBeat = ts.toBeats (transport.getPosition()).inBeats();
-    const int px = xForBeat (playBeat);
-
-    if (px >= lanes.getX() && px <= lanes.getRight())
-    {
-        g.setColour (transport.isPlaying() ? colours::play : colours::text);
-        g.fillRect (px, ruler.getY(), 1, lanes.getBottom() - ruler.getY());
-        juce::Path head;
-        head.addTriangle ((float) px - 5.0f, (float) ruler.getY(), (float) px + 5.0f, (float) ruler.getY(),
-                          (float) px, (float) ruler.getY() + 7.0f);
-        g.fillPath (head);
     }
 
     if (tracks.isEmpty())
@@ -420,6 +428,9 @@ void ArrangementView::resized()
     bar.removeFromLeft (6);
     fitButton.setBounds (bar.removeFromLeft (70));
     backButton.setBounds (bar.removeFromRight (180));
+
+    const auto lanes = lanesArea();
+    playhead->setArea (juce::Rectangle<int>::leftTopRightBottom (lanes.getX(), rulerArea().getY(), lanes.getRight(), lanes.getBottom()));
 
     if (needsFit)
         fitToContent();

@@ -40,6 +40,8 @@ Il progetto è un'implementazione originale (codice, nome e grafica) e non conti
 - **Palette comandi (Ctrl+K):** cerca e avvia qualsiasi azione o aggiungi un device scrivendone il nome.
 - **Browser** con una sola ricerca e filtri (strumenti, effetti, plugin, campioni). I campioni si trascinano sugli slot.
 - **Catena di device** per traccia con le manopole dei primi parametri; ogni device si apre, si disattiva o si rimuove.
+- **Device che si vedono:** l'EQ mostra la sua curva con un punto per banda da trascinare (rotella per la larghezza, doppio clic per azzerare), il filtro la curva con la frequenza di taglio, il compressore la curva ingresso/uscita con la soglia da trascinare. Delay, riverbero, chorus, phaser e synth mostrano ripetizioni, coda, LFO in movimento e inviluppo.
+- **Animazioni e colore:** la testina scorre fluida in arrangement e piano roll, le clip si illuminano quando partono e pulsano a tempo, i pannelli si aprono con una transizione morbida. Il colore della traccia segue la traccia ovunque: intestazioni, fader, mixer, device e corsie. I meter tengono il picco per un attimo prima di farlo scendere.
 - **Progetti:** nuovo, apri, salva, salva con nome. Ogni modifica si annulla con Ctrl+Z.
 - **Tastiera MIDI su schermo** per suonare gli strumenti anche senza controller.
 

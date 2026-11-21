@@ -11,6 +11,7 @@
 #include "Widgets.h"
 
 namespace sonora::recording { class Recorder; }
+namespace sonora::anim { class PlayheadOverlay; }
 
 namespace sonora
 {
@@ -89,6 +90,7 @@ private:
     void showHeaderMenu (tracktion::AudioTrack&);
 
     recording::Recorder* recorder = nullptr;
+    std::unique_ptr<anim::PlayheadOverlay> playhead;
     double pixelsPerBeat = 24.0, viewStart = 0.0;
     bool needsFit = true; // l'adattamento aspetta di conoscere la larghezza vera
     int scrollY = 0, laneHeight = 64;

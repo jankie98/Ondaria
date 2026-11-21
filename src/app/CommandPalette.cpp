@@ -5,6 +5,7 @@
 */
 
 #include "CommandPalette.h"
+#include "Animation.h"
 #include "Theme.h"
 #include "Widgets.h"
 
@@ -36,7 +37,7 @@ void CommandPalette::show (std::vector<Command> c)
     commands = std::move (c);
     input.clear();
     filter();
-    setVisible (true);
+    anim::fadeIn (*this, 120);
     toFront (true);
     input.grabKeyboardFocus();
 }

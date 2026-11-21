@@ -5,6 +5,7 @@
 */
 
 #include "DeviceChainComponent.h"
+#include "DeviceVisualiser.h"
 #include "Widgets.h"
 
 namespace te = tracktion;
@@ -124,6 +125,9 @@ public:
             format = "Integrato";
         }
 
+        if ((visualiser = DeviceVisualiser::create (*plugin, colour)))
+            addAndMakeVisible (*visualiser);
+
         // Le prime otto manopole: per tutti i parametri c'e' la finestra del device.
         auto params = plugin->getAutomatableParameters();
 
@@ -146,13 +150,39 @@ public:
             k->refresh();
             k->setAlpha (plugin->isEnabled() ? 1.0f : 0.45f);
         }
+
+        if (visualiser != nullptr)
+        {
+            visualiser->refresh();
+            visualiser->setAlpha (plugin->isEnabled() ? 1.0f : 0.45f);
+        }
     }
+
+    int getPreferredWidth() const
+    {
+        if (visualiser == nullptr)
+            return boxWidth;
+
+        // Col disegno, la scheda e' larga quanto le manopole che mostra davvero
+        const int columns = juce::jlimit (2, knobsPerRow, knobs.size());
+        return 24 + DeviceVisualiser::preferredWidth + 10 + columns * (boxWidth - 24) / knobsPerRow;
+    }
+
+    juce::Colour getColour() const      { return colour; }
 
     void paint (juce::Graphics& g) override
     {
         auto r = getLocalBounds().toFloat();
         g.setColour (colours::panel);
         g.fillRoundedRectangle (r, 10.0f);
+
+        // Fascia col colore della traccia in alto
+        {
+            juce::Graphics::ScopedSaveState s (g);
+            g.reduceClipRegion (getLocalBounds().removeFromTop (3));
+            g.setColour (plugin->isEnabled() ? colour : colour.withSaturation (0.15f));
+            g.fillRoundedRectangle (r, 10.0f);
+        }
 
         auto header = getLocalBounds().reduced (12, 10).removeFromTop (24);
         header.removeFromLeft (26);
@@ -195,7 +225,14 @@ public:
         openButton.setBounds (header.removeFromRight (50).withSizeKeepingCentre (50, 22));
 
         r.removeFromTop (10);
-        const int knobW = r.getWidth() / knobsPerRow, knobH = 70;
+
+        if (visualiser != nullptr)
+        {
+            visualiser->setBounds (r.removeFromLeft (DeviceVisualiser::preferredWidth).withTrimmedBottom (2));
+            r.removeFromLeft (10);
+        }
+
+        const int knobW = (boxWidth - 24) / knobsPerRow, knobH = 70;
 
         for (int i = 0; i < knobs.size(); ++i)
         {
@@ -215,6 +252,7 @@ private:
     FlatButton openButton { "Apri", 11.5f };
     IconButton removeButton { "Rimuovi", icons::close() };
     juce::OwnedArray<ParameterKnob> knobs;
+    std::unique_ptr<DeviceVisualiser> visualiser;
 };
 
 //==============================================================================
@@ -223,7 +261,7 @@ DeviceChainComponent::DeviceChainComponent()
     viewport.setViewedComponent (&content, false);
     viewport.setScrollBarsShown (false, true);
     addAndMakeVisible (viewport);
-    startTimerHz (10);
+    startTimerHz (30);
 }
 
 DeviceChainComponent::~DeviceChainComponent()
@@ -251,7 +289,7 @@ te::Plugin::Array DeviceChainComponent::getUserPlugins() const
 
 void DeviceChainComponent::timerCallback()
 {
-    if (getUserPlugins() != shownPlugins)
+    if (getUserPlugins() != shownPlugins || trackColour() != shownColour)
         rebuild();
     else
         for (auto* b : boxes)
@@ -263,13 +301,18 @@ void DeviceChainComponent::rebuild()
     boxes.clear();
     shownPlugins = getUserPlugins();
 
-    const auto colour = track != nullptr && ! track->getColour().isTransparent() ? track->getColour() : colours::accent;
+    shownColour = trackColour();
 
     for (auto p : shownPlugins)
-        content.addAndMakeVisible (boxes.add (new DeviceBox (p, colour)));
+        content.addAndMakeVisible (boxes.add (new DeviceBox (p, shownColour)));
 
     resized();
     repaint();
+}
+
+juce::Colour DeviceChainComponent::trackColour() const
+{
+    return track != nullptr && ! track->getColour().isTransparent() ? track->getColour() : colours::accent;
 }
 
 void DeviceChainComponent::paint (juce::Graphics& g)
@@ -279,7 +322,7 @@ void DeviceChainComponent::paint (juce::Graphics& g)
     if (track != nullptr && ! boxes.isEmpty())
         return;
 
-    auto r = getLocalBounds().reduced (0, 4).withTrimmedLeft (boxes.size() * (boxWidth + 10));
+    auto r = getLocalBounds().reduced (0, 4);
     auto hint = r.withSizeKeepingCentre (juce::jmin (r.getWidth() - 20, 420), juce::jmin (r.getHeight() - 8, 120));
     g.setColour (colours::outline);
     g.drawRoundedRectangle (hint.toFloat(), 10.0f, 1.0f);   // tratteggio non necessario: bordo sottile
@@ -296,10 +339,15 @@ void DeviceChainComponent::resized()
     viewport.setBounds (getLocalBounds());
 
     const int h = juce::jmax (0, getHeight() - viewport.getScrollBarThickness());
-    content.setSize (juce::jmax (getWidth(), boxes.size() * (boxWidth + 10)), h);
+    int x = 0;
 
-    for (int i = 0; i < boxes.size(); ++i)
-        boxes[i]->setBounds (i * (boxWidth + 10), 0, boxWidth, h);
+    for (auto* b : boxes)
+    {
+        b->setBounds (x, 0, b->getPreferredWidth(), h);
+        x += b->getPreferredWidth() + 10;
+    }
+
+    content.setSize (juce::jmax (getWidth(), x), h);
 }
 
 } // namespace sonora

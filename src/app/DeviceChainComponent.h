@@ -31,10 +31,12 @@ private:
     void timerCallback() override;
     void rebuild();
     tracktion::Plugin::Array getUserPlugins() const;
+    juce::Colour trackColour() const;
 
     tracktion::AudioTrack::Ptr track;
     juce::OwnedArray<DeviceBox> boxes;
     tracktion::Plugin::Array shownPlugins;
+    juce::Colour shownColour;
     juce::Viewport viewport;
     juce::Component content;
 };

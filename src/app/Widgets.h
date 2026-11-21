@@ -125,6 +125,8 @@ private:
     tracktion::LevelMeasurer* measurer = nullptr;
     tracktion::LevelMeasurer::Client client;
     float levels[2] { -100.0f, -100.0f };
+    float peaks[2] { -100.0f, -100.0f };
+    int peakHold[2] { 0, 0 };
 };
 
 } // namespace sonora

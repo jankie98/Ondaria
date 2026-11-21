@@ -37,7 +37,7 @@ namespace metrics
 {
     inline constexpr int topBarHeight   = 52;
     inline constexpr int browserWidth   = 248;
-    inline constexpr int detailHeight   = 220;
+    inline constexpr int detailHeight   = 244;
     inline constexpr int slotHeight     = 28;
     inline constexpr int gap            = 4;
     inline constexpr float radius       = 6.0f;
