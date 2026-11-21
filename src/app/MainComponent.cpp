@@ -5,71 +5,134 @@
 */
 
 #include "MainComponent.h"
-#include "SonoraLookAndFeel.h"
+#include "Theme.h"
+#include "session/Session.h"
 
 namespace te = tracktion;
-using namespace std::literals;
 
 namespace sonora
 {
 
 static constexpr const char* keyboardDeviceName = "Tastiera Sonora";
+static constexpr const char* projectExtension = ".tracktionedit";
+static constexpr int statusBarHeight = 26;
+static constexpr int detailHeaderHeight = 40;
 
-MainComponent::MainComponent (te::Engine& e)
-    : engine (e), browser (e)
+//==============================================================================
+/** Vista arrangement provvisoria: mostra le tracce sulla linea del tempo.
+    L'editor completo (clip, registrazione, automazioni) arriva nella fase 4.
+*/
+class MainComponent::ArrangementPlaceholder final : public juce::Component
 {
-    audioButton.onClick = [this] { showAudioSettings(); };
-    playButton.onClick = [this]
+public:
+    explicit ArrangementPlaceholder (MainComponent& o) : owner (o) {}
+
+    void paint (juce::Graphics& g) override
     {
-        if (edit != nullptr)
-            edit->getTransport().play (false);
-    };
-    stopButton.onClick = [this]
-    {
-        if (edit != nullptr)
+        g.fillAll (colours::background);
+        auto r = getLocalBounds().reduced (14);
+
+        auto ruler = r.removeFromTop (22).withTrimmedLeft (156);
+        g.setFont (fonts::mono (10.0f));
+
+        for (int bar = 0; bar < 16; ++bar)
         {
-            auto& transport = edit->getTransport();
-
-            if (transport.isPlaying())
-                transport.stop (false, false);
-            else
-                transport.setPosition (0s);
+            const int x = ruler.getX() + ruler.getWidth() * bar / 16;
+            g.setColour (colours::panelLight);
+            g.fillRect (x, ruler.getY(), 1, ruler.getHeight());
+            g.setColour (colours::textDim);
+            g.drawText (juce::String (bar + 1), x + 4, ruler.getY(), 30, ruler.getHeight(), juce::Justification::centredLeft);
         }
-    };
-    addTrackButton.onClick = [this]
-    {
-        if (edit != nullptr)
+
+        r.removeFromTop (6);
+
+        if (owner.edit != nullptr)
         {
-            edit->ensureNumberOfAudioTracks (te::getAudioTracks (*edit).size() + 1);
-            trackList.updateContent();
-            trackList.selectRow (te::getAudioTracks (*edit).size() - 1);
+            for (auto t : te::getAudioTracks (*owner.edit))
+            {
+                if (r.getHeight() < 56)
+                    break;
+
+                auto lane = r.removeFromTop (56);
+                r.removeFromTop (6);
+                auto header = lane.removeFromLeft (150).toFloat();
+                lane.removeFromLeft (6);
+
+                g.setColour (colours::panel);
+                g.fillRoundedRectangle (header, metrics::radius);
+                auto text = header.reduced (10.0f, 0.0f);
+                g.setColour (t->getColour());
+                g.fillRoundedRectangle (text.removeFromLeft (8.0f).withSizeKeepingCentre (8.0f, 8.0f), 2.0f);
+                text.removeFromLeft (8.0f);
+                g.setColour (colours::text);
+                g.setFont (fonts::ui (12.5f, fonts::Weight::medium));
+                g.drawText (t->getName(), text, juce::Justification::centredLeft, true);
+
+                g.setColour (colours::emptySlot);
+                g.fillRoundedRectangle (lane.toFloat(), metrics::radius);
+            }
         }
-    };
 
-    tempoSlider.setRange (20.0, 999.0, 0.1);
-    tempoSlider.setTextBoxStyle (juce::Slider::TextBoxLeft, false, 60, 24);
-    tempoSlider.onValueChange = [this]
-    {
-        if (edit != nullptr)
-            edit->tempoSequence.getTempos()[0]->setBpm (tempoSlider.getValue());
-    };
+        auto note = getLocalBounds().withSizeKeepingCentre (440, 64);
+        g.setColour (colours::panelLight);
+        g.fillRoundedRectangle (note.toFloat(), 10.0f);
+        g.setColour (colours::text);
+        g.setFont (fonts::ui (13.0f, fonts::Weight::medium));
+        g.drawText ("L'arrangement arriva nella prossima fase", note.removeFromTop (38), juce::Justification::centredBottom);
+        g.setColour (colours::textDim);
+        g.setFont (fonts::ui (12.0f));
+        g.drawText ("Per ora lavora nella session view (Tab per tornarci)", note, juce::Justification::centredTop);
+    }
 
-    cpuLabel.setJustificationType (juce::Justification::centredRight);
-    statusLabel.setColour (juce::Label::textColourId, colours::textDim);
+private:
+    MainComponent& owner;
+};
+
+//==============================================================================
+MainComponent::MainComponent (te::Engine& e)
+    : engine (e), topBar (e), browser (e)
+{
+    arrangement = std::make_unique<ArrangementPlaceholder> (*this);
+
+    topBar.onViewChanged = [this] (TopBar::View v) { setView (v); };
+    topBar.onShowMenu = [this] { showMainMenu(); };
+    topBar.onShowCommandPalette = [this] { showCommandPalette(); };
 
     browser.onPluginChosen = [this] (const juce::PluginDescription& d) { insertDevice (d); };
 
-    trackList.setModel (this);
-    trackList.setRowHeight (34);
+    sessionView.onTrackSelected = [this] (te::AudioTrack* t)
+    {
+        deviceChain.setTrack (t);
+        routeKeyboardTo (t);
+        repaint (0, getHeight() - metrics::detailHeight - statusBarHeight, getWidth(), detailHeaderHeight);
+    };
+    sessionView.onStatus = [this] (const juce::String& s) { status (s); };
+
+    keyboardButton.setClickingTogglesState (true);
+    keyboardButton.onClick = [this] { resized(); repaint(); };
+
+    addDeviceButton.setBaseColour (colours::panel);
+    addDeviceButton.onClick = [this] { browser.focusSearch(); };
 
     keyboard.setAvailableRange (24, 108);
     keyboard.setLowestVisibleKey (48);
+    keyboard.setColour (juce::MidiKeyboardComponent::whiteNoteColourId, colours::text);
+    keyboard.setColour (juce::MidiKeyboardComponent::blackNoteColourId, colours::panel);
+    keyboard.setColour (juce::MidiKeyboardComponent::keySeparatorLineColourId, colours::textDim);
+    keyboard.setColour (juce::MidiKeyboardComponent::keyDownOverlayColourId, colours::accent);
+    keyboard.setColour (juce::MidiKeyboardComponent::mouseOverKeyOverlayColourId, colours::accent.withAlpha (0.3f));
+    keyboard.setColour (juce::MidiKeyboardComponent::shadowColourId, juce::Colours::transparentBlack);
+    keyboard.setColour (juce::MidiKeyboardComponent::upDownButtonBackgroundColourId, colours::panel);
+    keyboard.setColour (juce::MidiKeyboardComponent::upDownButtonArrowColourId, colours::textMid);
     keyboardState.addListener (this);
 
-    for (auto* c : std::initializer_list<juce::Component*> { &audioButton, &playButton, &stopButton, &addTrackButton,
-                                                             &tempoSlider, &tempoLabel, &cpuLabel, &statusLabel,
-                                                             &browser, &trackList, &deviceChain, &keyboard })
+    for (auto* c : std::initializer_list<juce::Component*> { &topBar, &browser, &sessionView, &deviceChain,
+                                                             &keyboardButton, &addDeviceButton })
         addAndMakeVisible (c);
+
+    addChildComponent (*arrangement);
+    addChildComponent (keyboard);
+    addChildComponent (palette);
 
     // Tastiera virtuale: permette di suonare gli strumenti anche senza controller.
     auto& dm = engine.getDeviceManager();
@@ -86,49 +149,144 @@ MainComponent::MainComponent (te::Engine& e)
             keyboardDevice = m;
     }
 
-    createOrLoadEdit();
+    // Riapre l'ultimo progetto, o quello predefinito.
+    auto file = getProjectsFolder().getChildFile (juce::String ("Senza titolo") + projectExtension);
+    openProject (file);
 
-    setSize (1280, 800);
-    startTimerHz (10);
+    setSize (1440, 900);
+    setWantsKeyboardFocus (true);
+    startTimerHz (4);
 }
 
 MainComponent::~MainComponent()
 {
     keyboardState.removeListener (this);
-    save();
-
-    if (edit != nullptr)
-        edit->getTransport().removeChangeListener (this);
+    setEdit (nullptr);
 }
 
-void MainComponent::createOrLoadEdit()
+juce::File MainComponent::getProjectsFolder()
 {
     auto folder = juce::File::getSpecialLocation (juce::File::userDocumentsDirectory).getChildFile ("Sonora");
     folder.createDirectory();
-    auto file = folder.getChildFile ("Senza titolo.tracktionedit");
+    return folder;
+}
 
-    if (file.existsAsFile())
-        edit = te::loadEditFromFile (engine, file);
-    else
-        edit = te::createEmptyEdit (engine, file);
+//==============================================================================
+void MainComponent::setEdit (std::unique_ptr<te::Edit> newEdit)
+{
+    sessionView.setEdit (nullptr);
+    deviceChain.setTrack (nullptr);
+    topBar.setEdit (nullptr);
+
+    if (edit != nullptr)
+        edit->getTransport().stop (false, true);
+
+    edit = std::move (newEdit);
+
+    if (edit == nullptr)
+        return;
 
     edit->playInStopEnabled = true;
-    edit->ensureNumberOfAudioTracks (4);
-    edit->getTransport().addChangeListener (this);
+
+    if (te::getAudioTracks (*edit).isEmpty())
+        edit->ensureNumberOfAudioTracks (4);
+
+    session::ensureGrid (*edit);
+    edit->getUndoManager().clearUndoHistory();
     edit->getTransport().ensureContextAllocated();
 
-    tempoSlider.setValue (edit->tempoSequence.getTempos()[0]->getBpm(), juce::dontSendNotification);
+    topBar.setEdit (edit.get());
+    sessionView.setEdit (edit.get());
 
-    trackList.updateContent();
-    trackList.selectRow (0);
-    statusLabel.setText ("Progetto: " + file.getFullPathName(), juce::dontSendNotification);
-    updateTransportButtons();
+    if (auto top = getTopLevelComponent(); top != nullptr && top != this)
+        top->setName ("Sonora - " + te::EditFileOperations (*edit).getEditFile().getFileNameWithoutExtension());
+
+    repaint();
+}
+
+void MainComponent::openProject (const juce::File& file)
+{
+    std::unique_ptr<te::Edit> e;
+
+    if (file.existsAsFile())
+        e = te::loadEditFromFile (engine, file);
+
+    if (e == nullptr)
+    {
+        e = te::createEmptyEdit (engine, file);
+        e->ensureNumberOfAudioTracks (4);
+
+        int i = 0;
+
+        for (auto t : te::getAudioTracks (*e))
+        {
+            t->setName ("Traccia " + juce::String (++i));
+            t->setColour (session::colourForIndex (i - 1));
+        }
+    }
+
+    setEdit (std::move (e));
+    status ("Progetto: " + file.getFileNameWithoutExtension());
+}
+
+void MainComponent::newProject()
+{
+    saveIfChanged();
+
+    auto file = getProjectsFolder().getNonexistentChildFile ("Nuovo progetto", projectExtension, false);
+    openProject (file);
+    save();
+}
+
+void MainComponent::openProject()
+{
+    chooser = std::make_unique<juce::FileChooser> ("Apri un progetto", getProjectsFolder(), juce::String ("*") + projectExtension);
+    chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+                          [this] (const juce::FileChooser& fc)
+    {
+        if (fc.getResult().existsAsFile())
+        {
+            saveIfChanged();
+            openProject (fc.getResult());
+        }
+    });
 }
 
 void MainComponent::save()
 {
     if (edit != nullptr)
+    {
         te::EditFileOperations (*edit).save (true, true, false);
+        status ("Salvato " + te::EditFileOperations (*edit).getEditFile().getFileName());
+    }
+}
+
+void MainComponent::saveIfChanged()
+{
+    if (edit != nullptr && edit->hasChangedSinceSaved())
+        te::EditFileOperations (*edit).save (false, true, false);
+}
+
+void MainComponent::saveAs()
+{
+    if (edit == nullptr)
+        return;
+
+    chooser = std::make_unique<juce::FileChooser> ("Salva il progetto come", te::EditFileOperations (*edit).getEditFile(),
+                                                   juce::String ("*") + projectExtension);
+    chooser->launchAsync (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles
+                            | juce::FileBrowserComponent::warnAboutOverwriting,
+                          [this] (const juce::FileChooser& fc)
+    {
+        auto f = fc.getResult();
+
+        if (f == juce::File() || edit == nullptr)
+            return;
+
+        f = f.withFileExtension (projectExtension);
+        te::EditFileOperations (*edit).saveAs (f, true, nullptr);
+        openProject (f);
+    });
 }
 
 //==============================================================================
@@ -136,87 +294,213 @@ void MainComponent::paint (juce::Graphics& g)
 {
     g.fillAll (colours::background);
 
-    g.setColour (colours::panel);
-    g.fillRect (getLocalBounds().removeFromTop (44));
+    // Intestazione del pannello dettaglio
+    auto detail = getLocalBounds().withTrimmedBottom (statusBarHeight).removeFromBottom (metrics::detailHeight)
+                                  .withTrimmedLeft (metrics::browserWidth);
+    g.setColour (colours::sidebar);
+    g.fillRect (detail);
+    g.setColour (colours::divider);
+    g.fillRect (detail.removeFromTop (1));
+
+    auto header = detail.removeFromTop (detailHeaderHeight).reduced (14, 0);
+
+    if (auto t = sessionView.getSelectedTrack())
+    {
+        g.setColour (t->getColour());
+        g.fillRoundedRectangle (header.removeFromLeft (10).withSizeKeepingCentre (10, 10).toFloat(), 3.0f);
+        header.removeFromLeft (10);
+        g.setColour (colours::text);
+        g.setFont (fonts::ui (13.0f, fonts::Weight::semibold));
+        const auto name = t->getName();
+        const int w = (int) juce::GlyphArrangement::getStringWidth (fonts::ui (13.0f, fonts::Weight::semibold), name) + 12;
+        g.drawText (name, header.removeFromLeft (w), juce::Justification::centredLeft);
+    }
+
+    g.setColour (colours::textDim);
+    g.setFont (fonts::ui (12.5f));
+    g.drawText (keyboardButton.getToggleState() ? "Tastiera" : "Catena di device", header, juce::Justification::centredLeft);
+
+    // Barra di stato
+    auto bar = getLocalBounds().removeFromBottom (statusBarHeight);
+    g.setColour (colours::background);
+    g.fillRect (bar);
+    g.setColour (colours::divider);
+    g.fillRect (bar.removeFromTop (1));
+    bar.reduce (14, 0);
+
+    if (edit != nullptr)
+    {
+        g.setColour (colours::textDim);
+        g.setFont (fonts::ui (11.5f));
+        auto project = te::EditFileOperations (*edit).getEditFile().getFileNameWithoutExtension()
+                        + (edit->hasChangedSinceSaved() ? "  (modificato)" : "");
+        g.drawText (project, bar.removeFromRight (320), juce::Justification::centredRight, true);
+    }
+
+    g.setColour (colours::textMid);
+    g.setFont (fonts::ui (11.5f));
+    g.drawText (statusText, bar, juce::Justification::centredLeft, true);
 }
 
 void MainComponent::resized()
 {
     auto r = getLocalBounds();
+    palette.setBounds (r);
 
-    auto top = r.removeFromTop (44).reduced (8, 8);
-    audioButton.setBounds (top.removeFromLeft (80));
-    top.removeFromLeft (16);
-    playButton.setBounds (top.removeFromLeft (64));
-    top.removeFromLeft (4);
-    stopButton.setBounds (top.removeFromLeft (64));
-    top.removeFromLeft (16);
-    tempoSlider.setBounds (top.removeFromLeft (130));
-    tempoLabel.setBounds (top.removeFromLeft (40));
-    cpuLabel.setBounds (top.removeFromRight (120));
+    topBar.setBounds (r.removeFromTop (metrics::topBarHeight));
+    r.removeFromBottom (statusBarHeight);
+    browser.setBounds (r.removeFromLeft (metrics::browserWidth));
 
-    statusLabel.setBounds (r.removeFromBottom (22).reduced (8, 0));
-    keyboard.setBounds (r.removeFromBottom (64));
-    keyboard.setKeyWidth (juce::jmax (8.0f, (float) keyboard.getWidth() / 50.0f));
+    auto detail = r.removeFromBottom (metrics::detailHeight);
+    auto header = detail.removeFromTop (detailHeaderHeight).reduced (14, 6);
+    keyboardButton.setBounds (header.removeFromRight (30));
+    header.removeFromRight (6);
+    addDeviceButton.setBounds (header.removeFromRight (136));
 
-    browser.setBounds (r.removeFromLeft (280));
-    deviceChain.setBounds (r.removeFromBottom (190));
+    auto body = detail.reduced (14, 0).withTrimmedBottom (12);
+    deviceChain.setBounds (body);
+    keyboard.setBounds (body);
+    keyboard.setKeyWidth (juce::jmax (12.0f, (float) body.getWidth() / 52.0f));
+    deviceChain.setVisible (! keyboardButton.getToggleState());
+    keyboard.setVisible (keyboardButton.getToggleState());
+    addDeviceButton.setVisible (! keyboardButton.getToggleState());
 
-    auto tracksArea = r.reduced (8);
-    addTrackButton.setBounds (tracksArea.removeFromBottom (28).removeFromLeft (110));
-    tracksArea.removeFromBottom (6);
-    trackList.setBounds (tracksArea);
+    sessionView.setBounds (r);
+    arrangement->setBounds (r);
 }
 
 //==============================================================================
-int MainComponent::getNumRows()
+void MainComponent::setView (TopBar::View v)
 {
-    return edit != nullptr ? te::getAudioTracks (*edit).size() : 0;
+    view = v;
+    topBar.setView (v);
+    sessionView.setVisible (v == TopBar::View::session);
+    arrangement->setVisible (v == TopBar::View::arrangement);
 }
 
-void MainComponent::paintListBoxItem (int row, juce::Graphics& g, int width, int height, bool selected)
+void MainComponent::togglePlay()
 {
     if (edit == nullptr)
         return;
 
-    auto track = te::getAudioTracks (*edit)[row];
+    auto& t = edit->getTransport();
 
-    if (track == nullptr)
-        return;
-
-    g.fillAll (selected ? colours::selection : colours::panel);
-    g.setColour (track->getColour().isTransparent() ? colours::accent : track->getColour());
-    g.fillRect (0, 2, 4, height - 4);
-
-    int numDevices = 0;
-
-    for (auto p : track->pluginList.getPlugins())
-        if (dynamic_cast<te::VolumeAndPanPlugin*> (p) == nullptr && dynamic_cast<te::LevelMeterPlugin*> (p) == nullptr)
-            ++numDevices;
-
-    g.setColour (colours::text);
-    g.setFont (juce::FontOptions (14.0f));
-    g.drawText (track->getName(), 14, 0, width - 140, height, juce::Justification::centredLeft, true);
-    g.setColour (colours::textDim);
-    g.drawText (juce::String (numDevices) + (numDevices == 1 ? " device" : " device"),
-                width - 120, 0, 110, height, juce::Justification::centredRight);
+    if (t.isPlaying())
+        t.stop (false, false);
+    else
+        t.play (false);
 }
 
-void MainComponent::selectedRowsChanged (int)
+void MainComponent::status (const juce::String& s)
 {
-    auto track = getSelectedTrack();
-    deviceChain.setTrack (track);
-    routeKeyboardTo (track);
+    statusText = s;
+    statusTime = juce::Time::getMillisecondCounter();
+    repaint (getLocalBounds().removeFromBottom (statusBarHeight));
 }
 
-te::AudioTrack* MainComponent::getSelectedTrack() const
+void MainComponent::timerCallback()
 {
-    if (edit == nullptr)
-        return nullptr;
+    // Il messaggio di stato sparisce dopo qualche secondo; il "modificato" si aggiorna.
+    if (statusText.isNotEmpty() && juce::Time::getMillisecondCounter() - statusTime > 6000)
+        statusText.clear();
 
-    return te::getAudioTracks (*edit)[trackList.getSelectedRow()];
+    repaint (getLocalBounds().removeFromBottom (statusBarHeight));
 }
 
+bool MainComponent::keyPressed (const juce::KeyPress& key)
+{
+    const auto mods = key.getModifiers();
+    const bool cmd = mods.isCommandDown();
+    const int code = key.getKeyCode();
+
+    auto is = [&] (char c) { return code == c || code == juce::CharacterFunctions::toUpperCase ((juce::juce_wchar) c); };
+
+    if (key == juce::KeyPress::spaceKey && ! cmd)      { togglePlay(); return true; }
+    if (key == juce::KeyPress::tabKey && ! cmd)
+    {
+        setView (view == TopBar::View::session ? TopBar::View::arrangement : TopBar::View::session);
+        return true;
+    }
+
+    if (! cmd || edit == nullptr)
+        return false;
+
+    if (is ('z') && mods.isShiftDown())   { edit->redo(); return true; }
+    if (is ('z'))                          { edit->undo(); return true; }
+    if (is ('y'))                          { edit->redo(); return true; }
+    if (is ('s') && mods.isShiftDown())   { saveAs(); return true; }
+    if (is ('s'))                          { save(); return true; }
+    if (is ('o'))                          { openProject(); return true; }
+    if (is ('n'))                          { newProject(); return true; }
+    if (is ('k'))                          { showCommandPalette(); return true; }
+    if (is ('f'))                          { browser.focusSearch(); return true; }
+
+    if (is ('t'))
+    {
+        if (auto t = session::addTrack (*edit))
+            sessionView.selectTrack (t);
+
+        return true;
+    }
+
+    return false;
+}
+
+//==============================================================================
+void MainComponent::showMainMenu()
+{
+    juce::PopupMenu m;
+    m.addItem ("Nuovo progetto", [this] { newProject(); });
+    m.addItem ("Apri...", [this] { openProject(); });
+    m.addItem ("Salva", [this] { save(); });
+    m.addItem ("Salva con nome...", [this] { saveAs(); });
+    m.addSeparator();
+    m.addItem ("Impostazioni audio e MIDI...", [this] { showAudioSettings(); });
+    m.addItem ("Gestisci e scansiona plugin...", [this] { browser.openPluginManager(); });
+    m.addSeparator();
+    m.addItem ("Esci", [] { juce::JUCEApplication::getInstance()->systemRequestedQuit(); });
+    m.showMenuAsync (juce::PopupMenu::Options().withTargetScreenArea (localAreaToGlobal (juce::Rectangle<int> (12, 44, 1, 1))));
+}
+
+void MainComponent::showCommandPalette()
+{
+    std::vector<CommandPalette::Command> c;
+
+    auto add = [&c] (juce::String name, juce::String shortcut, std::function<void()> fn)
+    {
+        c.push_back ({ std::move (name), {}, std::move (shortcut), std::move (fn) });
+    };
+
+    add ("Riproduci / ferma", "Spazio", [this] { togglePlay(); });
+    add ("Ferma tutte le clip", {}, [this] { if (edit != nullptr) session::stopAllClips (*edit); });
+    add ("Nuova traccia", "Ctrl+T", [this]
+    {
+        if (edit != nullptr)
+            if (auto t = session::addTrack (*edit))
+                sessionView.selectTrack (t);
+    });
+    add ("Nuova scena", {}, [this] { if (edit != nullptr) session::addScene (*edit); });
+    add ("Annulla", "Ctrl+Z", [this] { if (edit != nullptr) edit->undo(); });
+    add ("Ripeti", "Ctrl+Shift+Z", [this] { if (edit != nullptr) edit->redo(); });
+    add ("Session view", "Tab", [this] { setView (TopBar::View::session); });
+    add ("Arrangement", "Tab", [this] { setView (TopBar::View::arrangement); });
+    add ("Metronomo", {}, [this] { if (edit != nullptr) edit->clickTrackEnabled = ! edit->clickTrackEnabled.get(); });
+    add ("Mostra o nascondi la tastiera", {}, [this] { keyboardButton.triggerClick(); });
+    add ("Nuovo progetto", "Ctrl+N", [this] { newProject(); });
+    add ("Apri progetto", "Ctrl+O", [this] { openProject(); });
+    add ("Salva", "Ctrl+S", [this] { save(); });
+    add ("Salva con nome", "Ctrl+Shift+S", [this] { saveAs(); });
+    add ("Impostazioni audio e MIDI", {}, [this] { showAudioSettings(); });
+    add ("Gestisci e scansiona plugin", {}, [this] { browser.openPluginManager(); });
+    add ("Cerca nel browser", "Ctrl+F", [this] { browser.focusSearch(); });
+
+    for (auto& d : browser.getAllDevices())
+        c.push_back ({ "Aggiungi " + d.name, d.pluginFormatName, {}, [this, d] { insertDevice (d); } });
+
+    palette.show (std::move (c));
+}
+
+//==============================================================================
 void MainComponent::routeKeyboardTo (te::AudioTrack* track)
 {
     if (edit == nullptr || track == nullptr)
@@ -238,13 +522,15 @@ void MainComponent::routeKeyboardTo (te::AudioTrack* track)
     edit->restartPlayback();
 }
 
-//==============================================================================
 void MainComponent::insertDevice (const juce::PluginDescription& desc)
 {
-    auto track = getSelectedTrack();
+    auto track = sessionView.getSelectedTrack();
 
-    if (track == nullptr)
+    if (track == nullptr || edit == nullptr)
+    {
+        status ("Seleziona prima una traccia");
         return;
+    }
 
     te::Plugin::Ptr plugin;
 
@@ -255,7 +541,7 @@ void MainComponent::insertDevice (const juce::PluginDescription& desc)
 
     if (plugin == nullptr)
     {
-        statusLabel.setText ("Impossibile creare: " + desc.name, juce::dontSendNotification);
+        status ("Impossibile creare " + desc.name);
         return;
     }
 
@@ -270,16 +556,14 @@ void MainComponent::insertDevice (const juce::PluginDescription& desc)
         ++index;
     }
 
+    edit->getUndoManager().beginNewTransaction ("Aggiungi " + desc.name);
     track->pluginList.insertPlugin (plugin, index, nullptr);
 
     if (auto external = dynamic_cast<te::ExternalPlugin*> (plugin.get());
         external != nullptr && external->getAudioPluginInstance() == nullptr)
-        statusLabel.setText ("Errore nel caricare " + desc.name + ": " + external->getLoadError(), juce::dontSendNotification);
+        status ("Errore nel caricare " + desc.name + ": " + external->getLoadError());
     else
-        statusLabel.setText ("Aggiunto " + desc.name + " (" + desc.pluginFormatName + ") a " + track->getName(),
-                             juce::dontSendNotification);
-
-    trackList.repaint();
+        status ("Aggiunto " + desc.name + " a " + track->getName());
 }
 
 //==============================================================================
@@ -293,23 +577,6 @@ void MainComponent::handleNoteOff (juce::MidiKeyboardState*, int channel, int no
 {
     if (keyboardDevice != nullptr)
         keyboardDevice->handleIncomingMidiMessage (nullptr, juce::MidiMessage::noteOff (channel, note, velocity));
-}
-
-void MainComponent::changeListenerCallback (juce::ChangeBroadcaster*)
-{
-    updateTransportButtons();
-}
-
-void MainComponent::updateTransportButtons()
-{
-    const bool playing = edit != nullptr && edit->getTransport().isPlaying();
-    playButton.setToggleState (playing, juce::dontSendNotification);
-}
-
-void MainComponent::timerCallback()
-{
-    const auto cpu = engine.getDeviceManager().getCpuUsage();
-    cpuLabel.setText ("CPU " + juce::String (juce::roundToInt (cpu * 100.0)) + "%", juce::dontSendNotification);
 }
 
 void MainComponent::showAudioSettings()

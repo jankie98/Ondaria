@@ -4,7 +4,7 @@ Sonora è una DAW open source per **Linux e Windows**, pensata per un flusso di 
 
 Il progetto è un'implementazione originale (codice, nome e grafica) e non contiene codice o risorse di altre DAW commerciali.
 
-> Stato: **prima versione in sviluppo** (passo 2 della roadmap). L'app apre un progetto, carica plugin di ogni formato su più tracce e li fa suonare con la tastiera virtuale. Session view e arrangement arrivano nel passo 3.
+> Stato: **in sviluppo** (fase 3 della roadmap). C'è la nuova interfaccia con la session view: clip e scene lanciate a tempo, mixer per traccia, plugin di ogni formato. L'arrangement arriva nella fase 4.
 
 ## Cosa c'è già
 
@@ -20,9 +20,29 @@ Il progetto è un'implementazione originale (codice, nome e grafica) e non conti
   | VST2 | opzionale | opzionale | JUCE, solo se compilato con l'SDK VST2 (`-DSONORA_VST2_SDK_DIR=...`) |
 
 - **Scansione isolata:** ogni file di plugin viene aperto da `sonora-plugin-scanner`, un processo separato. Se un plugin va in crash o si blocca, finisce nella lista di esclusione e la DAW resta aperta.
-- **Browser dei device** con ricerca, strumenti ed effetti integrati e tutti i plugin trovati.
-- **Catena di device** per traccia: aggiungi, apri l'interfaccia, attiva/disattiva, rimuovi.
-- **Tastiera MIDI virtuale** per suonare gli strumenti anche senza controller.
+- **Interfaccia moderna e minimal:** tema scuro, font Inter e JetBrains Mono, colore solo dove porta informazione.
+- **Session view:** una colonna per traccia e una riga per scena. Le clip si lanciano a tempo con la quantizzazione scelta (da nessuna a 8 battute); lanciare una scena fa partire tutta la riga, e gli slot vuoti lasciano suonare la traccia.
+  - Triangolo della clip: la lancia. Doppio clic su uno slot vuoto: nuova clip MIDI. Trascina un file audio o MIDI su uno slot per importarlo.
+  - Invio lancia, Canc elimina, frecce per muoversi; clic destro per rinominare, cambiare colore, inserire o eliminare.
+- **Mixer per traccia:** volume, pan, mute, solo e meter; volume e meter del master.
+- **Barra superiore:** trasporto, posizione, tempo (trascina o doppio clic per scriverlo), metro, quantizzazione del lancio, loop, metronomo, undo/redo.
+- **Palette comandi (Ctrl+K):** cerca e avvia qualsiasi azione o aggiungi un device scrivendone il nome.
+- **Browser** con una sola ricerca e filtri (strumenti, effetti, plugin, campioni). I campioni si trascinano sugli slot.
+- **Catena di device** per traccia con le manopole dei primi parametri; ogni device si apre, si disattiva o si rimuove.
+- **Progetti:** nuovo, apri, salva, salva con nome. Ogni modifica si annulla con Ctrl+Z.
+- **Tastiera MIDI su schermo** per suonare gli strumenti anche senza controller.
+
+### Scorciatoie
+
+| Tasto | Azione |
+| --- | --- |
+| Spazio | Riproduci / ferma |
+| Tab | Session view / arrangement |
+| Ctrl+K | Palette comandi |
+| Ctrl+T | Nuova traccia |
+| Ctrl+Z, Ctrl+Shift+Z | Annulla, ripeti |
+| Ctrl+N, Ctrl+O, Ctrl+S, Ctrl+Shift+S | Nuovo, apri, salva, salva con nome |
+| Ctrl+F | Cerca nel browser |
 
 ## Scaricare una versione pronta
 
@@ -61,14 +81,16 @@ cmake --build build --config Release
 ## Struttura
 
 ```
-src/app/       interfaccia: finestra principale, browser, catena di device, finestre dei plugin
+src/app/       interfaccia: tema, barra superiore, session view, browser, catena di device, palette comandi
+src/session/   logica della session view (clip, scene, lancio quantizzato), separata dall'interfaccia
 src/host/      host dei plugin: formato CLAP, registro dei formati, scansione isolata
 src/scanner/   sonora-plugin-scanner, il processo che scansiona un plugin alla volta
 tests/         test automatici e plugin CLAP di prova
 external/      sottomoduli: Tracktion Engine (con JUCE) e SDK CLAP
 docs/          architettura e roadmap
+resources/     font dell'interfaccia (Inter e JetBrains Mono, SIL Open Font License)
 ```
 
 ## Licenza
 
-AGPL-3.0-or-later (vedi `LICENSE`). JUCE è distribuito con licenza AGPLv3 e Tracktion Engine con GPLv3 o successiva, entrambe compatibili.
+AGPL-3.0-or-later (vedi `LICENSE`). JUCE è distribuito con licenza AGPLv3 e Tracktion Engine con GPLv3 o successiva, entrambe compatibili. I font Inter e JetBrains Mono sono distribuiti con la SIL Open Font License 1.1 (testi in `resources/fonts`).

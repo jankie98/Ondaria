@@ -8,19 +8,20 @@
 
 #include <tracktion_engine/tracktion_engine.h>
 
+#include "CommandPalette.h"
 #include "DeviceChainComponent.h"
 #include "PluginBrowserComponent.h"
+#include "SessionView.h"
+#include "TopBar.h"
 
 namespace sonora
 {
 
-/** Schermata principale della prima versione: trasporto, browser dei
-    device, elenco tracce, catena di device e tastiera MIDI di prova.
-    Session view e arrangement arrivano nel passo 3.
+/** Finestra principale: barra superiore, browser a sinistra, session view al
+    centro, pannello dettaglio (catena di device o tastiera) in basso.
 */
 class MainComponent final : public juce::Component,
-                            private juce::ListBoxModel,
-                            private juce::ChangeListener,
+                            public juce::DragAndDropContainer,
                             private juce::MidiKeyboardState::Listener,
                             private juce::Timer
 {
@@ -30,43 +31,57 @@ public:
 
     void paint (juce::Graphics&) override;
     void resized() override;
+    bool keyPressed (const juce::KeyPress&) override;
 
-    /** Salva il progetto corrente. */
+    /** Salva il progetto corrente nel suo file. */
     void save();
 
-private:
-    // Elenco tracce
-    int getNumRows() override;
-    void paintListBoxItem (int row, juce::Graphics&, int width, int height, bool selected) override;
-    void selectedRowsChanged (int lastRowSelected) override;
+    /** Usato all'uscita: salva solo se ci sono modifiche. */
+    void saveIfChanged();
 
-    void changeListenerCallback (juce::ChangeBroadcaster*) override;
+private:
+    class ArrangementPlaceholder;
+
     void handleNoteOn (juce::MidiKeyboardState*, int channel, int note, float velocity) override;
     void handleNoteOff (juce::MidiKeyboardState*, int channel, int note, float velocity) override;
     void timerCallback() override;
 
-    void createOrLoadEdit();
+    void setEdit (std::unique_ptr<tracktion::Edit>);
+    void newProject();
+    void openProject();
+    void openProject (const juce::File&);
+    void saveAs();
+    static juce::File getProjectsFolder();
+
     void insertDevice (const juce::PluginDescription&);
-    tracktion::AudioTrack* getSelectedTrack() const;
     void routeKeyboardTo (tracktion::AudioTrack*);
     void showAudioSettings();
-    void updateTransportButtons();
+    void showMainMenu();
+    void showCommandPalette();
+    void setView (TopBar::View);
+    void togglePlay();
+    void status (const juce::String&);
 
     tracktion::Engine& engine;
     std::unique_ptr<tracktion::Edit> edit;
     std::shared_ptr<tracktion::MidiInputDevice> keyboardDevice;
+    std::unique_ptr<juce::FileChooser> chooser;
 
-    juce::TextButton audioButton { "Audio..." }, playButton { "Play" }, stopButton { "Stop" },
-                     addTrackButton { "+ Traccia" };
-    juce::Slider tempoSlider { juce::Slider::IncDecButtons, juce::Slider::TextBoxLeft };
-    juce::Label tempoLabel { {}, "BPM" }, cpuLabel, statusLabel;
-
+    TopBar topBar;
     PluginBrowserComponent browser;
-    juce::ListBox trackList;
+    SessionView sessionView;
+    std::unique_ptr<ArrangementPlaceholder> arrangement;
     DeviceChainComponent deviceChain;
+    CommandPalette palette;
 
+    IconButton keyboardButton { "Tastiera MIDI su schermo", icons::keyboard() };
+    FlatButton addDeviceButton { "+ Aggiungi device", 12.0f };
     juce::MidiKeyboardState keyboardState;
     juce::MidiKeyboardComponent keyboard { keyboardState, juce::MidiKeyboardComponent::horizontalKeyboard };
+
+    juce::String statusText;
+    juce::uint32 statusTime = 0;
+    TopBar::View view = TopBar::View::session;
 };
 
 } // namespace sonora
