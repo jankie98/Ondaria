@@ -114,6 +114,8 @@ MainComponent::MainComponent (te::Engine& e)
     addChildComponent (pianoRoll);
     setDetail (Detail::devices);
     addChildComponent (palette);
+    addChildComponent (exportPanel);
+    exportPanel.onStatus = [this] (const juce::String& text) { status (text); };
 
     // Tastiera virtuale: permette di suonare gli strumenti anche senza controller.
     auto& dm = engine.getDeviceManager();
@@ -358,6 +360,7 @@ void MainComponent::resized()
 {
     auto r = getLocalBounds();
     palette.setBounds (r);
+    exportPanel.setBounds (r);
 
     topBar.setBounds (r.removeFromTop (metrics::topBarHeight));
     r.removeFromBottom (statusBarHeight);
@@ -548,6 +551,7 @@ bool MainComponent::keyPressed (const juce::KeyPress& key)
     if (key == juce::KeyPress::spaceKey && ! cmd)      { togglePlay(); return true; }
     if (key == juce::KeyPress::F9Key)                   { toggleRecord(); return true; }
     if (cmd && mods.isShiftDown() && is ('c'))          { captureNow(); return true; }
+    if (cmd && mods.isShiftDown() && is ('r'))          { showExport(); return true; }
     if (key == juce::KeyPress::tabKey && ! cmd)
     {
         setView (view == TopBar::View::session ? TopBar::View::arrangement : TopBar::View::session);
@@ -586,6 +590,8 @@ void MainComponent::showMainMenu()
     m.addItem ("Apri...", [this] { openProject(); });
     m.addItem ("Salva", [this] { save(); });
     m.addItem ("Salva con nome...", [this] { saveAs(); });
+    m.addSeparator();
+    m.addItem ("Esporta audio...", [this] { showExport(); });
     m.addSeparator();
     m.addItem ("Impostazioni audio e MIDI...", [this] { showAudioSettings(); });
     m.addItem ("Gestisci e scansiona plugin...", [this] { browser.openPluginManager(); });
@@ -653,6 +659,7 @@ void MainComponent::showCommandPalette()
     add ("Apri progetto", "Ctrl+O", [this] { openProject(); });
     add ("Salva", "Ctrl+S", [this] { save(); });
     add ("Salva con nome", "Ctrl+Shift+S", [this] { saveAs(); });
+    add ("Esporta audio (mix o stem in WAV, FLAC, MP3)", "Ctrl+Shift+R", [this] { showExport(); });
     add ("Impostazioni audio e MIDI", {}, [this] { showAudioSettings(); });
     add ("Gestisci e scansiona plugin", {}, [this] { browser.openPluginManager(); });
     add ("Cerca nel browser", "Ctrl+F", [this] { browser.focusSearch(); });
@@ -725,6 +732,12 @@ void MainComponent::handleNoteOff (juce::MidiKeyboardState*, int channel, int no
 
     if (capturer != nullptr)
         capturer->addLiveMidi (juce::MidiMessage::noteOff (channel, note, velocity));
+}
+
+void MainComponent::showExport()
+{
+    if (edit != nullptr)
+        exportPanel.show (*edit);
 }
 
 void MainComponent::showAudioSettings()
