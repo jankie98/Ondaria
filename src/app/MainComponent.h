@@ -10,6 +10,7 @@
 
 #include "CommandPalette.h"
 #include "DeviceChainComponent.h"
+#include "PianoRoll.h"
 #include "PluginBrowserComponent.h"
 #include "SessionView.h"
 #include "TopBar.h"
@@ -59,6 +60,10 @@ private:
     void showMainMenu();
     void showCommandPalette();
     void setView (TopBar::View);
+
+    enum class Detail { devices, clip, keyboard };
+    void setDetail (Detail);
+    int getDetailHeight() const;
     void togglePlay();
     void status (const juce::String&);
 
@@ -72,6 +77,9 @@ private:
     SessionView sessionView;
     std::unique_ptr<ArrangementPlaceholder> arrangement;
     DeviceChainComponent deviceChain;
+    PianoRoll pianoRoll;
+    Detail detail = Detail::devices;
+    FlatButton devicesTab { "Device", 12.0f }, clipTab { "Clip", 12.0f };
     CommandPalette palette;
 
     IconButton keyboardButton { "Tastiera MIDI su schermo", icons::keyboard() };

@@ -34,6 +34,9 @@ public:
     /** Chiamata quando cambia la traccia selezionata. */
     std::function<void (tracktion::AudioTrack*)> onTrackSelected;
 
+    /** Chiamata quando si seleziona uno slot (clip nullptr se e' vuoto). */
+    std::function<void (tracktion::Clip*)> onClipSelected;
+
     /** Messaggi brevi per la barra di stato. */
     std::function<void (const juce::String&)> onStatus;
 

@@ -22,7 +22,7 @@ add_test (NAME SonoraHostTests COMMAND SonoraHostTests)
 
 # Test di integrazione con Tracktion Engine
 juce_add_console_app (SonoraEngineTests PRODUCT_NAME "SonoraEngineTests")
-target_sources (SonoraEngineTests PRIVATE EngineTests.cpp SessionTests.cpp ${SONORA_SESSION_SOURCES_ABS} ${SONORA_HOST_SOURCES_ABS})
+target_sources (SonoraEngineTests PRIVATE EngineTests.cpp SessionTests.cpp NotesTests.cpp ${SONORA_SESSION_SOURCES_ABS} ${SONORA_HOST_SOURCES_ABS})
 sonora_configure_target (SonoraEngineTests)
 target_link_libraries (SonoraEngineTests PRIVATE
     tracktion::tracktion_core

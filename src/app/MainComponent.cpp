@@ -104,12 +104,38 @@ MainComponent::MainComponent (te::Engine& e)
     {
         deviceChain.setTrack (t);
         routeKeyboardTo (t);
-        repaint (0, getHeight() - metrics::detailHeight - statusBarHeight, getWidth(), detailHeaderHeight);
+        repaint (0, getHeight() - getDetailHeight() - statusBarHeight, getWidth(), detailHeaderHeight);
     };
     sessionView.onStatus = [this] (const juce::String& s) { status (s); };
+    sessionView.onClipSelected = [this] (te::Clip* c)
+    {
+        auto midi = dynamic_cast<te::MidiClip*> (c);
+        pianoRoll.setClip (midi);
 
-    keyboardButton.setClickingTogglesState (true);
-    keyboardButton.onClick = [this] { resized(); repaint(); };
+        if (midi != nullptr)
+            setDetail (Detail::clip);
+        else if (detail == Detail::clip)
+            setDetail (Detail::devices);
+    };
+
+    pianoRoll.onPreviewNote = [this] (int pitch, bool on)
+    {
+        if (on)
+            keyboardState.noteOn (1, pitch, 0.8f);
+        else
+            keyboardState.noteOff (1, pitch, 0.0f);
+    };
+
+    for (auto* tab : { &devicesTab, &clipTab })
+    {
+        tab->setOnColours (colours::hover, colours::text);
+        addAndMakeVisible (tab);
+    }
+
+    devicesTab.onClick = [this] { setDetail (Detail::devices); };
+    clipTab.onClick = [this] { setDetail (Detail::clip); };
+
+    keyboardButton.onClick = [this] { setDetail (detail == Detail::keyboard ? Detail::devices : Detail::keyboard); };
 
     addDeviceButton.setBaseColour (colours::panel);
     addDeviceButton.onClick = [this] { browser.focusSearch(); };
@@ -132,6 +158,8 @@ MainComponent::MainComponent (te::Engine& e)
 
     addChildComponent (*arrangement);
     addChildComponent (keyboard);
+    addChildComponent (pianoRoll);
+    setDetail (Detail::devices);
     addChildComponent (palette);
 
     // Tastiera virtuale: permette di suonare gli strumenti anche senza controller.
@@ -295,14 +323,14 @@ void MainComponent::paint (juce::Graphics& g)
     g.fillAll (colours::background);
 
     // Intestazione del pannello dettaglio
-    auto detail = getLocalBounds().withTrimmedBottom (statusBarHeight).removeFromBottom (metrics::detailHeight)
+    auto detailRect = getLocalBounds().withTrimmedBottom (statusBarHeight).removeFromBottom (getDetailHeight())
                                   .withTrimmedLeft (metrics::browserWidth);
     g.setColour (colours::sidebar);
-    g.fillRect (detail);
+    g.fillRect (detailRect);
     g.setColour (colours::divider);
-    g.fillRect (detail.removeFromTop (1));
+    g.fillRect (detailRect.removeFromTop (1));
 
-    auto header = detail.removeFromTop (detailHeaderHeight).reduced (14, 0);
+    auto header = detailRect.removeFromTop (detailHeaderHeight).reduced (14, 0);
 
     if (auto t = sessionView.getSelectedTrack())
     {
@@ -316,9 +344,10 @@ void MainComponent::paint (juce::Graphics& g)
         g.drawText (name, header.removeFromLeft (w), juce::Justification::centredLeft);
     }
 
-    g.setColour (colours::textDim);
-    g.setFont (fonts::ui (12.5f));
-    g.drawText (keyboardButton.getToggleState() ? "Tastiera" : "Catena di device", header, juce::Justification::centredLeft);
+    // Contenitore delle schede Device / Clip
+    auto tabs = devicesTab.getBounds().getUnion (clipTab.getBounds()).expanded (3);
+    g.setColour (colours::panel);
+    g.fillRoundedRectangle (tabs.toFloat(), 8.0f);
 
     // Barra di stato
     auto bar = getLocalBounds().removeFromBottom (statusBarHeight);
@@ -351,19 +380,23 @@ void MainComponent::resized()
     r.removeFromBottom (statusBarHeight);
     browser.setBounds (r.removeFromLeft (metrics::browserWidth));
 
-    auto detail = r.removeFromBottom (metrics::detailHeight);
-    auto header = detail.removeFromTop (detailHeaderHeight).reduced (14, 6);
+    auto detailArea = r.removeFromBottom (getDetailHeight());
+    auto header = detailArea.removeFromTop (detailHeaderHeight).reduced (14, 6);
     keyboardButton.setBounds (header.removeFromRight (30));
     header.removeFromRight (6);
     addDeviceButton.setBounds (header.removeFromRight (136));
 
-    auto body = detail.reduced (14, 0).withTrimmedBottom (12);
+    // Le schede stanno dopo il nome della traccia, disegnato in paint().
+    auto tabsArea = header.withTrimmedLeft (180).removeFromLeft (150).reduced (3);
+    devicesTab.setBounds (tabsArea.removeFromLeft (72));
+    tabsArea.removeFromLeft (2);
+    clipTab.setBounds (tabsArea.removeFromLeft (72));
+
+    auto body = detailArea.reduced (14, 0).withTrimmedBottom (12);
     deviceChain.setBounds (body);
+    pianoRoll.setBounds (body);
     keyboard.setBounds (body);
     keyboard.setKeyWidth (juce::jmax (12.0f, (float) body.getWidth() / 52.0f));
-    deviceChain.setVisible (! keyboardButton.getToggleState());
-    keyboard.setVisible (keyboardButton.getToggleState());
-    addDeviceButton.setVisible (! keyboardButton.getToggleState());
 
     sessionView.setBounds (r);
     arrangement->setBounds (r);
@@ -376,6 +409,26 @@ void MainComponent::setView (TopBar::View v)
     topBar.setView (v);
     sessionView.setVisible (v == TopBar::View::session);
     arrangement->setVisible (v == TopBar::View::arrangement);
+}
+
+int MainComponent::getDetailHeight() const
+{
+    // Il piano roll ha bisogno di piu' spazio della catena di device.
+    return metrics::detailHeight + (detail == Detail::clip ? juce::jmax (0, getHeight() / 5) : 0);
+}
+
+void MainComponent::setDetail (Detail d)
+{
+    detail = d;
+    deviceChain.setVisible (d == Detail::devices);
+    pianoRoll.setVisible (d == Detail::clip);
+    keyboard.setVisible (d == Detail::keyboard);
+    addDeviceButton.setVisible (d == Detail::devices);
+    devicesTab.setToggleState (d == Detail::devices, juce::dontSendNotification);
+    clipTab.setToggleState (d == Detail::clip, juce::dontSendNotification);
+    keyboardButton.setToggleState (d == Detail::keyboard, juce::dontSendNotification);
+    resized();
+    repaint();
 }
 
 void MainComponent::togglePlay()
@@ -486,6 +539,8 @@ void MainComponent::showCommandPalette()
     add ("Arrangement", "Tab", [this] { setView (TopBar::View::arrangement); });
     add ("Metronomo", {}, [this] { if (edit != nullptr) edit->clickTrackEnabled = ! edit->clickTrackEnabled.get(); });
     add ("Mostra o nascondi la tastiera", {}, [this] { keyboardButton.triggerClick(); });
+    add ("Mostra la catena di device", {}, [this] { setDetail (Detail::devices); });
+    add ("Mostra il piano roll della clip", {}, [this] { setDetail (Detail::clip); });
     add ("Nuovo progetto", "Ctrl+N", [this] { newProject(); });
     add ("Apri progetto", "Ctrl+O", [this] { openProject(); });
     add ("Salva", "Ctrl+S", [this] { save(); });

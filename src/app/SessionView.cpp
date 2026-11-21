@@ -207,6 +207,7 @@ public:
         {
             session::createMidiClip (*slot, 1);
             view.status ("Creata una clip MIDI di una battuta su " + track.getName());
+            view.selectSlot (&track, sceneIndex);
         }
         else
         {
@@ -260,7 +261,10 @@ public:
                 {
                     if (safe != nullptr)
                         if (auto s = safe->getSlot())
+                        {
                             session::createMidiClip (*s, bars);
+                            safe->view.selectSlot (&safe->track, safe->sceneIndex);
+                        }
                 });
         }
 
@@ -928,6 +932,10 @@ void SessionView::selectSlot (te::AudioTrack* t, int sceneIndex)
     selectTrack (t);
     content->refresh();
     grabKeyboardFocus();
+
+    if (onClipSelected)
+        if (auto slot = getSelectedSlot())
+            onClipSelected (slot->getClip());
 }
 
 te::ClipSlot* SessionView::getSelectedSlot() const

@@ -72,6 +72,8 @@ list (TRANSFORM SONORA_HOST_SOURCES PREPEND "${CMAKE_SOURCE_DIR}/" OUTPUT_VARIAB
 
 # Logica della session view (senza interfaccia), usata dall'app e dai test.
 set (SONORA_SESSION_SOURCES
+    src/session/Notes.cpp
+    src/session/Notes.h
     src/session/Session.cpp
     src/session/Session.h)
 list (TRANSFORM SONORA_SESSION_SOURCES PREPEND "${CMAKE_SOURCE_DIR}/" OUTPUT_VARIABLE SONORA_SESSION_SOURCES_ABS)
@@ -111,6 +113,8 @@ target_sources (Sonora PRIVATE
     src/app/Main.cpp
     src/app/MainComponent.cpp
     src/app/MainComponent.h
+    src/app/PianoRoll.cpp
+    src/app/PianoRoll.h
     src/app/CommandPalette.cpp
     src/app/CommandPalette.h
     src/app/DeviceChainComponent.cpp
