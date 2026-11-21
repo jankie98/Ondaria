@@ -76,6 +76,8 @@ set (SONORA_SESSION_SOURCES
     src/session/Arrangement.h
     src/session/Notes.cpp
     src/session/Notes.h
+    src/session/Capture.cpp
+    src/session/Capture.h
     src/session/Recording.cpp
     src/session/Recording.h
     src/session/Session.cpp

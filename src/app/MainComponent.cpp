@@ -33,6 +33,18 @@ MainComponent::MainComponent (te::Engine& e)
     topBar.onTogglePlay = [this] { togglePlay(); };
     topBar.onStop = [this] { stopTransport (true); };
     topBar.onRecord = [this] { toggleRecord(); };
+    topBar.onCapture = [this] { captureNow(); };
+    topBar.canCapture = [this]
+    {
+        if (capturer == nullptr || recorder == nullptr || edit == nullptr)
+            return false;
+
+        for (auto t : te::getAudioTracks (*edit))
+            if (recorder->isArmed (*t) && capturer->hasSomethingFor (*t))
+                return true;
+
+        return false;
+    };
     topBar.isRecording = [this] { return recorder != nullptr && recorder->isRecording(); };
 
     browser.onPluginChosen = [this] (const juce::PluginDescription& d) { insertDevice (d); };
@@ -158,6 +170,10 @@ void MainComponent::setEdit (std::unique_ptr<te::Edit> newEdit)
         edit->getTransport().stop (false, true);
 
     recorder.reset();
+
+    if (capturer != nullptr)
+        capturer->setEdit (nullptr);
+
     edit = std::move (newEdit);
 
     if (edit == nullptr)
@@ -173,6 +189,11 @@ void MainComponent::setEdit (std::unique_ptr<te::Edit> newEdit)
     edit->getTransport().ensureContextAllocated();
 
     recorder = std::make_unique<recording::Recorder> (*edit);
+
+    if (capturer == nullptr)
+        capturer = std::make_unique<capture::Capturer> (engine);
+
+    capturer->setEdit (edit.get());
     recorder->onSlotRecorded = [this] (te::Clip& c)
     {
         if (auto slot = c.getClipSlot())
@@ -469,6 +490,36 @@ void MainComponent::toggleRecord()
         status ("Registrazione nell'arrangement");
 }
 
+void MainComponent::captureNow()
+{
+    if (capturer == nullptr || recorder == nullptr || edit == nullptr)
+        return;
+
+    const auto dest = view == TopBar::View::session ? capture::Destination::session : capture::Destination::arrangement;
+    juce::Array<te::Clip*> clips;
+
+    if (auto res = capturer->captureArmedTracks (*recorder, dest, &clips); res.failed())
+    {
+        status (res.getErrorMessage());
+        return;
+    }
+
+    auto clip = clips.getFirst();
+
+    if (clip == nullptr)
+        return;
+
+    auto track = clip->getClipSlot() != nullptr ? dynamic_cast<te::AudioTrack*> (&clip->getClipSlot()->track)
+                                                : dynamic_cast<te::AudioTrack*> (clip->getTrack());
+
+    if (auto slot = clip->getClipSlot(); slot != nullptr && track != nullptr)
+        sessionView.selectSlot (track, track->getClipSlotList().getClipSlots().indexOf (slot));
+
+    showClip (clip);
+    status (clips.size() == 1 ? "Catturata una clip su " + (track != nullptr ? track->getName() : juce::String())
+                              : "Catturate " + juce::String (clips.size()) + " clip");
+}
+
 void MainComponent::status (const juce::String& s)
 {
     statusText = s;
@@ -495,6 +546,7 @@ bool MainComponent::keyPressed (const juce::KeyPress& key)
 
     if (key == juce::KeyPress::spaceKey && ! cmd)      { togglePlay(); return true; }
     if (key == juce::KeyPress::F9Key)                   { toggleRecord(); return true; }
+    if (cmd && mods.isShiftDown() && is ('c'))          { captureNow(); return true; }
     if (key == juce::KeyPress::tabKey && ! cmd)
     {
         setView (view == TopBar::View::session ? TopBar::View::arrangement : TopBar::View::session);
@@ -552,6 +604,7 @@ void MainComponent::showCommandPalette()
 
     add ("Riproduci / ferma", "Spazio", [this] { togglePlay(); });
     add ("Registra nell'arrangement", "F9", [this] { toggleRecord(); });
+    add ("Cattura quello che hai appena suonato", "Ctrl+Shift+C", [this] { captureNow(); });
     add ("Arma la traccia selezionata", {}, [this]
     {
         if (auto t = sessionView.getSelectedTrack(); t != nullptr && recorder != nullptr)
@@ -637,12 +690,18 @@ void MainComponent::handleNoteOn (juce::MidiKeyboardState*, int channel, int not
 {
     if (keyboardDevice != nullptr)
         keyboardDevice->handleIncomingMidiMessage (nullptr, juce::MidiMessage::noteOn (channel, note, velocity));
+
+    if (capturer != nullptr)
+        capturer->addLiveMidi (juce::MidiMessage::noteOn (channel, note, velocity));
 }
 
 void MainComponent::handleNoteOff (juce::MidiKeyboardState*, int channel, int note, float velocity)
 {
     if (keyboardDevice != nullptr)
         keyboardDevice->handleIncomingMidiMessage (nullptr, juce::MidiMessage::noteOff (channel, note, velocity));
+
+    if (capturer != nullptr)
+        capturer->addLiveMidi (juce::MidiMessage::noteOff (channel, note, velocity));
 }
 
 void MainComponent::showAudioSettings()

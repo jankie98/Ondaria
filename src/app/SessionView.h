@@ -36,6 +36,9 @@ public:
     tracktion::AudioTrack* getSelectedTrack() const;
     void selectTrack (tracktion::AudioTrack*);
 
+    /** Seleziona lo slot (e la sua clip) della traccia alla scena data. */
+    void selectSlot (tracktion::AudioTrack*, int sceneIndex);
+
     /** Chiamata quando cambia la traccia selezionata. */
     std::function<void (tracktion::AudioTrack*)> onTrackSelected;
 
@@ -57,7 +60,6 @@ private:
 
     void timerCallback() override;
     void rebuildIfNeeded (bool force = false);
-    void selectSlot (tracktion::AudioTrack*, int sceneIndex);
     tracktion::ClipSlot* getSelectedSlot() const;
     void status (const juce::String&);
 

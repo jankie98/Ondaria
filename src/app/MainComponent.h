@@ -15,6 +15,7 @@
 #include "PluginBrowserComponent.h"
 #include "SessionView.h"
 #include "TopBar.h"
+#include "session/Capture.h"
 #include "session/Recording.h"
 
 namespace sonora
@@ -69,9 +70,11 @@ private:
     void togglePlay();
     void stopTransport (bool returnToStartIfStopped);
     void toggleRecord();
+    void captureNow();
     void status (const juce::String&);
 
     tracktion::Engine& engine;
+    std::unique_ptr<capture::Capturer> capturer;      // ascolta sempre, anche cambiando progetto
     std::unique_ptr<tracktion::Edit> edit;
     std::unique_ptr<recording::Recorder> recorder;   // dopo edit: va distrutto prima
     std::shared_ptr<tracktion::MidiInputDevice> keyboardDevice;

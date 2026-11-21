@@ -490,6 +490,21 @@ void Recorder::finishSlotClip (te::Clip& clip, std::optional<te::MonotonicBeat> 
         onSlotRecorded (clip);
 }
 
+void Recorder::launchInPhase (te::Clip& clip, te::MonotonicBeat clipZero)
+{
+    auto slot = clip.getClipSlot();
+    auto track = slot != nullptr ? dynamic_cast<te::AudioTrack*> (&slot->track) : nullptr;
+    auto lh = clip.getLaunchHandle();
+
+    if (track == nullptr || lh == nullptr || ! edit.getTransport().isPlaying())
+        return;
+
+    session::stopTrack (*track);
+    track->playSlotClips = true;
+    lh->play (std::nullopt);
+    pendingAligns.push_back ({ clip.itemID, clipZero, 30, clip.getLoopLengthBeats() });
+}
+
 void Recorder::removeIdleSlotTargets()
 {
     for (auto inst : edit.getAllInputDevices())
@@ -515,10 +530,20 @@ void Recorder::timerCallback()
         {
             if (auto played = lh->getPlayedMonotonicRange())
             {
-                const auto late = played->v.getStart() - it->beat.v;
+                auto late = played->v.getStart() - it->beat.v;
 
-                if (late > 0_bd && late < 4_bd)
+                if (it->wrap > 0_bd)
+                {
+                    const double w = it->wrap.inBeats();
+                    late = te::BeatDuration::fromBeats (std::fmod (std::fmod (late.inBeats(), w) + w, w));
+
+                    if (late > 0_bd)
+                        lh->nudge (late);
+                }
+                else if (late > 0_bd && late < 4_bd)
+                {
                     lh->nudge (late);
+                }
             }
 
             done = true;
