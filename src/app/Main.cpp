@@ -8,7 +8,7 @@
 
 #include "MainComponent.h"
 #include "SonoraBehaviour.h"
-#include "SonoraLookAndFeel.h"
+#include "Theme.h"
 #include "host/IsolatedPluginScanner.h"
 #include "host/PluginFormats.h"
 
@@ -26,6 +26,7 @@ public:
         setUsingNativeTitleBar (true);
         setContentOwned (new MainComponent (engine), true);
         setResizable (true, true);
+        setResizeLimits (1100, 680, 10000, 10000);
         centreWithSize (getWidth(), getHeight());
         setVisible (true);
     }
@@ -68,6 +69,10 @@ public:
 
     void systemRequestedQuit() override
     {
+        if (mainWindow != nullptr)
+            if (auto mc = dynamic_cast<MainComponent*> (mainWindow->getContentComponent()))
+                mc->saveIfChanged();
+
         quit();
     }
 
