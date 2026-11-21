@@ -7,6 +7,7 @@
 #include <tracktion_engine/tracktion_engine.h>
 
 #include "MainComponent.h"
+#include "OndariaIcons.h"
 #include "SonoraBehaviour.h"
 #include "Theme.h"
 #include "host/IsolatedPluginScanner.h"
@@ -29,6 +30,12 @@ public:
         setResizeLimits (1100, 680, 10000, 10000);
         centreWithSize (getWidth(), getHeight());
         setVisible (true);
+
+        // Icona nella barra delle applicazioni e nel selettore delle finestre
+        // (su Windows c'è già quella dell'eseguibile, su Linux serve qui).
+        if (auto* peer = getPeer())
+            peer->setIcon (juce::ImageCache::getFromMemory (OndariaIcons::ondaria512_png,
+                                                            OndariaIcons::ondaria512_pngSize));
     }
 
     void closeButtonPressed() override
@@ -40,7 +47,7 @@ public:
 class SonoraApplication final : public juce::JUCEApplication
 {
 public:
-    const juce::String getApplicationName() override       { return "Sonora"; }
+    const juce::String getApplicationName() override       { return "Ondaria"; }
     const juce::String getApplicationVersion() override    { return SONORA_VERSION; }
     bool moreThanOneInstanceAllowed() override             { return true; }
 
@@ -48,7 +55,7 @@ public:
     {
         juce::LookAndFeel::setDefaultLookAndFeel (&lookAndFeel);
 
-        engine = std::make_unique<te::Engine> ("Sonora",
+        engine = std::make_unique<te::Engine> ("Ondaria",
                                                std::make_unique<SonoraUIBehaviour>(),
                                                std::make_unique<SonoraEngineBehaviour>());
 
@@ -57,7 +64,7 @@ public:
         addAllPluginFormats (pm.pluginFormatManager);
         pm.knownPluginList.setCustomScanner (std::make_unique<IsolatedPluginScanner>());
 
-        mainWindow = std::make_unique<MainWindow> ("Sonora " + getApplicationVersion(), *engine);
+        mainWindow = std::make_unique<MainWindow> ("Ondaria " + getApplicationVersion(), *engine);
     }
 
     void shutdown() override

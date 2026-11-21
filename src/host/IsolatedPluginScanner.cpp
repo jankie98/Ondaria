@@ -46,7 +46,7 @@ bool IsolatedPluginScanner::findPluginTypesFor (juce::AudioPluginFormat& format,
         case Outcome::scannerMissing:
             // Senza scanner non possiamo isolare: meglio non caricare nulla
             // che rischiare un crash della DAW.
-            DBG ("sonora-plugin-scanner non trovato: " << scanner.getFullPathName());
+            DBG ("ondaria-plugin-scanner non trovato: " << scanner.getFullPathName());
             return true;
 
         case Outcome::crashed:
