@@ -7,6 +7,8 @@
 #include "DeviceChainComponent.h"
 #include "DeviceVisualiser.h"
 #include "FreezeUI.h"
+#include "PluginIsolation.h"
+#include "Settings.h"
 #include "Widgets.h"
 #include "session/Racks.h"
 
@@ -206,6 +208,7 @@ private:
 
 //==============================================================================
 class DeviceChainComponent::DeviceBox final : public juce::Component,
+                                              public juce::SettableTooltipClient,
                                               public Refreshable
 {
 public:
@@ -247,6 +250,14 @@ public:
 
             if (external->getAudioPluginInstance() == nullptr)
                 error = "Non caricato: " + external->getLoadError();
+            else if (isolation::hasCrashed (*plugin))
+                error = juce::String::fromUTF8 ("Si \xc3\xa8 fermato nel suo processo e ora tace. Il progetto non ne risente: "
+                                                "riavvialo dal menu (tasto destro).");
+
+            isolated = isolation::isIsolated (*plugin);
+
+            if (isolated)
+                setTooltip ("Gira in un processo separato: se va in crash, Ondaria continua a suonare");
         }
         else
         {
@@ -353,6 +364,15 @@ public:
         g.setFont (fonts::mono (10.0f));
         g.drawText (format, badge, juce::Justification::centred);
 
+        // Gira in un processo suo: un punto accanto al formato (rosso se e' morto)
+        if (isolated)
+        {
+            header.removeFromRight (4);
+            auto dot = header.removeFromRight (8).withSizeKeepingCentre (6, 6).toFloat();
+            g.setColour (error.isNotEmpty() ? colours::record : colours::accent);
+            g.fillEllipse (dot);
+        }
+
         g.setColour (plugin->isEnabled() ? colours::text : colours::textDim);
         g.setFont (fonts::ui (13.0f, fonts::Weight::medium));
         g.drawText (plugin->getName(), header.withTrimmedRight (6), juce::Justification::centredLeft, true);
@@ -406,7 +426,7 @@ private:
     te::RackType::Ptr rack;
     juce::Colour colour;
     juce::String format, error;
-    bool selected = false;
+    bool selected = false, isolated = false;
     IconButton powerButton { "Attiva/disattiva", icons::power() };
     FlatButton openButton { "Apri", 11.5f };
     IconButton removeButton { "Rimuovi", icons::close() };
@@ -1067,7 +1087,7 @@ juce::String DeviceChainComponent::signature() const
 
     for (auto p : getUserPlugins())
     {
-        s << p->itemID.toString() << (p->isFrozen() ? "f" : "") << ";";
+        s << p->itemID.toString() << (p->isFrozen() ? "f" : "") << isolation::tag (*p) << ";";
 
         if (auto rack = racks::getRackType (*p))
         {
@@ -1075,7 +1095,7 @@ juce::String DeviceChainComponent::signature() const
             s << "[" << racks::getNumChains (*rack) << ":" << chain << ":";
 
             for (auto inside : racks::getChainPlugins (*rack, chain))
-                s << inside->itemID.toString() << ",";
+                s << inside->itemID.toString() << isolation::tag (*inside) << ",";
 
             s << (rack == targetRack.get() ? "T" : "") << "]";
         }
@@ -1359,6 +1379,43 @@ void DeviceChainComponent::mouseDown (const juce::MouseEvent& e)
             box->setSelected (false);
 }
 
+namespace
+{
+    /** Voci per i plugin esterni: processo separato e riavvio. */
+    void addIsolationItems (juce::PopupMenu& m, te::Plugin& p)
+    {
+        auto external = dynamic_cast<te::ExternalPlugin*> (&p);
+
+        if (external == nullptr || external->getAudioPluginInstance() == nullptr)
+            return;
+
+        te::Plugin::Ptr ptr (&p);
+        const bool isolated = isolation::isIsolated (p);
+        const bool chosenMode = sandbox::getPolicy() == sandbox::Policy::chosen;
+
+        m.addSeparator();
+
+        if (isolation::hasCrashed (p))
+            m.addItem ("Riavvia il plugin", [ptr]
+            {
+                if (auto e = dynamic_cast<te::ExternalPlugin*> (ptr.get()))
+                    isolation::reload (*e);
+            });
+
+        m.addItem (chosenMode ? juce::String ("Esegui in un processo separato")
+                              : "Processo separato: " + sandbox::policyName (sandbox::getPolicy()).toLowerCase() + " (menu principale)",
+                   chosenMode, isolated, [ptr, isolated]
+        {
+            if (auto e = dynamic_cast<te::ExternalPlugin*> (ptr.get()))
+            {
+                sandbox::setChosen (e->desc, ! isolated);
+                saveSandboxSettings (e->edit.engine);
+                isolation::reload (*e);
+            }
+        });
+    }
+}
+
 void DeviceChainComponent::showDeviceMenu (te::Plugin& p)
 {
     juce::PopupMenu m;
@@ -1368,6 +1425,7 @@ void DeviceChainComponent::showDeviceMenu (te::Plugin& p)
     {
         te::RackType::Ptr r (rack);
         m.addItem ("Apri", [ptr] { ptr->showWindowExplicitly(); });
+        addIsolationItems (m, p);
         m.addSeparator();
         m.addItem ("Rimuovi dalla catena", [ptr, r]
         {
@@ -1383,6 +1441,7 @@ void DeviceChainComponent::showDeviceMenu (te::Plugin& p)
         m.addItem ("Apri", [ptr] { ptr->showWindowExplicitly(); });
         m.addItem (count > 1 ? "Raggruppa i " + juce::String (count) + " device in un rack" : juce::String ("Metti in un rack"),
                    [this] { groupSelection(); });
+        addIsolationItems (m, p);
         m.addSeparator();
         m.addItem ("Rimuovi", [ptr] { undoable (ptr->edit, "Rimuovi device", [&] { ptr->deleteFromParent(); }); });
     }

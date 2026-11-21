@@ -8,6 +8,7 @@
 #include "session/Warp.h"
 #include "Animation.h"
 #include "FreezeUI.h"
+#include "PluginIsolation.h"
 #include "Settings.h"
 #include "Theme.h"
 #include "session/Session.h"
@@ -138,6 +139,13 @@ MainComponent::MainComponent (te::Engine& e)
     auto file = getProjectsFolder().getChildFile (juce::String ("Senza titolo") + projectExtension);
     openProject (file);
 
+    // Un plugin isolato e' morto: la DAW continua, il device tace finche' non lo riavvii
+    sandbox::setCrashCallback ([safe = juce::Component::SafePointer<MainComponent> (this)] (const juce::String& name)
+    {
+        if (safe != nullptr)
+            safe->status (name + " si e' fermato nel suo processo: ora tace. Riavvialo dal menu del device");
+    });
+
     setSize (1440, 900);
     setWantsKeyboardFocus (true);
     startTimerHz (8);
@@ -145,6 +153,7 @@ MainComponent::MainComponent (te::Engine& e)
 
 MainComponent::~MainComponent()
 {
+    sandbox::setCrashCallback (nullptr);
     keyboardState.removeListener (this);
     setEdit (nullptr);
 }
@@ -701,6 +710,31 @@ void MainComponent::setUiScale (float s)
     status ("Scala dell'interfaccia: " + juce::String (juce::roundToInt (s * 100.0f)) + "%");
 }
 
+juce::PopupMenu MainComponent::isolationMenu()
+{
+    juce::PopupMenu m;
+    const auto current = sandbox::getPolicy();
+
+    for (auto p : { sandbox::Policy::none, sandbox::Policy::chosen, sandbox::Policy::all })
+        m.addItem (sandbox::policyName (p), true, p == current, [this, p] { setIsolationPolicy (p); });
+
+    return m;
+}
+
+void MainComponent::setIsolationPolicy (sandbox::Policy p)
+{
+    sandbox::setPolicy (p);
+    saveSandboxSettings (engine);
+
+    const int reloaded = edit != nullptr ? isolation::applyToEdit (*edit) : 0;
+    juce::String text ("Plugin in un processo separato: " + sandbox::policyName (p).toLowerCase());
+
+    if (reloaded > 0)
+        text << " (" << reloaded << (reloaded == 1 ? " plugin ricaricato)" : " plugin ricaricati)");
+
+    status (text);
+}
+
 void MainComponent::showMainMenu()
 {
     juce::PopupMenu m;
@@ -716,6 +750,7 @@ void MainComponent::showMainMenu()
     m.addSubMenu ("Scala interfaccia", scaleMenu());
     m.addItem (juce::String::fromUTF8 ("Modalit\xc3\xa0 performance (F11)"), true, performance::enabled, [this] { togglePerformance(); });
     m.addItem ("Gestisci e scansiona plugin...", [this] { browser.openPluginManager(); });
+    m.addSubMenu ("Plugin in un processo separato", isolationMenu());
     m.addSeparator();
     m.addItem ("Esci", [] { juce::JUCEApplication::getInstance()->systemRequestedQuit(); });
     m.showMenuAsync (juce::PopupMenu::Options().withTargetScreenArea (localAreaToGlobal (juce::Rectangle<int> (12, 44, 1, 1))));
@@ -735,6 +770,9 @@ void MainComponent::showCommandPalette()
     add ("Cattura quello che hai appena suonato", "Ctrl+Shift+C", [this] { captureNow(); });
     add ("Tema chiaro o scuro", {}, [this] { toggleTheme(); });
     add (juce::String::fromUTF8 ("Modalit\xc3\xa0 performance (clip grandi, schermo intero)"), "F11", [this] { togglePerformance(); });
+
+    for (auto p : { sandbox::Policy::none, sandbox::Policy::chosen, sandbox::Policy::all })
+        add ("Plugin in un processo separato: " + sandbox::policyName (p).toLowerCase(), {}, [this, p] { setIsolationPolicy (p); });
 
     for (float s : { 1.0f, 1.25f, 1.5f, 2.0f })
         add ("Scala interfaccia " + juce::String (juce::roundToInt (s * 100.0f)) + "%", {}, [this, s] { setUiScale (s); });

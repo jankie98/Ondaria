@@ -7,6 +7,9 @@
 #include "SharedMemory.h"
 
 #if JUCE_WINDOWS
+ #ifndef NOMINMAX
+  #define NOMINMAX
+ #endif
  #include <windows.h>
 #else
  #include <fcntl.h>

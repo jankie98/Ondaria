@@ -31,7 +31,7 @@ add_test (NAME SonoraHostTests COMMAND SonoraHostTests)
 
 # Test di integrazione con Tracktion Engine
 juce_add_console_app (SonoraEngineTests PRODUCT_NAME "SonoraEngineTests")
-target_sources (SonoraEngineTests PRIVATE EngineTests.cpp SessionTests.cpp NotesTests.cpp ArrangementTests.cpp RecordingTests.cpp CaptureTests.cpp AutomationTests.cpp ExportTests.cpp FreezeTests.cpp WarpTests.cpp RackTests.cpp ${SONORA_SESSION_SOURCES_ABS} ${SONORA_HOST_SOURCES_ABS})
+target_sources (SonoraEngineTests PRIVATE EngineTests.cpp SessionTests.cpp NotesTests.cpp ArrangementTests.cpp RecordingTests.cpp CaptureTests.cpp AutomationTests.cpp ExportTests.cpp FreezeTests.cpp WarpTests.cpp RackTests.cpp SandboxEngineTests.cpp ${SONORA_SESSION_SOURCES_ABS} ${SONORA_HOST_SOURCES_ABS})
 sonora_configure_target (SonoraEngineTests)
 target_link_libraries (SonoraEngineTests PRIVATE
     tracktion::tracktion_core
@@ -44,7 +44,8 @@ target_compile_definitions (SonoraEngineTests PRIVATE
     JUCE_UNIT_TESTS=1
     SONORA_TEST_GAIN_PLUGIN="$<TARGET_FILE:TestGainPlugin>"
     SONORA_TEST_CRASH_PLUGIN="$<TARGET_FILE:CrashingPlugin>"
+    SONORA_TEST_PROCESS_CRASH_PLUGIN="$<TARGET_FILE:CrashOnProcessPlugin>"
     SONORA_SCANNER_PATH="$<TARGET_FILE:sonora-plugin-scanner>")
-add_dependencies (SonoraEngineTests TestGainPlugin CrashingPlugin sonora-plugin-scanner)
+add_dependencies (SonoraEngineTests TestGainPlugin CrashingPlugin CrashOnProcessPlugin sonora-plugin-scanner)
 
 add_test (NAME SonoraEngineTests COMMAND SonoraEngineTests)

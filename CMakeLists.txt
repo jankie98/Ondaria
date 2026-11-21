@@ -184,6 +184,7 @@ target_sources (Sonora PRIVATE
     src/app/ExportPanel.cpp
     src/app/ExportPanel.h
     src/app/FreezeUI.h
+    src/app/PluginIsolation.h
     src/app/TaskOverlay.h
     src/app/Settings.h
     src/app/CommandPalette.h

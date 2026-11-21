@@ -10,6 +10,8 @@
 #include "ScanProtocol.h"
 #include "SharedMemory.h"
 
+#include <chrono>
+#include <cstdlib>
 #include <thread>
 
 namespace sonora::sandbox
@@ -451,7 +453,14 @@ public:
 
         juce::ValueTree msg (proto::setState);
         msg.setProperty (dataID, juce::var (juce::MemoryBlock (data, (size_t) size)), nullptr);
-        connection->request (msg, 15000);
+        const auto reply = connection->request (msg, 15000);
+
+        // I valori dei parametri dopo lo stato nuovo, subito (senza aspettare un blocco audio)
+        for (int i = 0; i < juce::jmin (reply.getNumChildren(), proxies.size()); ++i)
+        {
+            const auto p = reply.getChild (i);
+            proxies[i]->updateFromPlugin ((float) p[valueID], p[textID].toString().toRawUTF8());
+        }
     }
 
     //==============================================================================
@@ -1029,7 +1038,18 @@ private:
                 markDirty (i);
         }
 
-        reply (v, juce::ValueTree (proto::done));
+        // ...e anche subito, nella risposta
+        juce::ValueTree answer (proto::done);
+
+        for (auto* p : instance->getParameters())
+        {
+            juce::ValueTree param ("PARAM");
+            param.setProperty (valueID, p->getValue(), nullptr);
+            param.setProperty (textID, p->getCurrentValueAsText(), nullptr);
+            answer.appendChild (param, nullptr);
+        }
+
+        reply (v, answer);
     }
 
     void openWindow()
