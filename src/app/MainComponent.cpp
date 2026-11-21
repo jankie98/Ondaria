@@ -19,80 +19,12 @@ static constexpr int statusBarHeight = 26;
 static constexpr int detailHeaderHeight = 40;
 
 //==============================================================================
-/** Vista arrangement provvisoria: mostra le tracce sulla linea del tempo.
-    L'editor completo (clip, registrazione, automazioni) arriva nella fase 4.
-*/
-class MainComponent::ArrangementPlaceholder final : public juce::Component
-{
-public:
-    explicit ArrangementPlaceholder (MainComponent& o) : owner (o) {}
-
-    void paint (juce::Graphics& g) override
-    {
-        g.fillAll (colours::background);
-        auto r = getLocalBounds().reduced (14);
-
-        auto ruler = r.removeFromTop (22).withTrimmedLeft (156);
-        g.setFont (fonts::mono (10.0f));
-
-        for (int bar = 0; bar < 16; ++bar)
-        {
-            const int x = ruler.getX() + ruler.getWidth() * bar / 16;
-            g.setColour (colours::panelLight);
-            g.fillRect (x, ruler.getY(), 1, ruler.getHeight());
-            g.setColour (colours::textDim);
-            g.drawText (juce::String (bar + 1), x + 4, ruler.getY(), 30, ruler.getHeight(), juce::Justification::centredLeft);
-        }
-
-        r.removeFromTop (6);
-
-        if (owner.edit != nullptr)
-        {
-            for (auto t : te::getAudioTracks (*owner.edit))
-            {
-                if (r.getHeight() < 56)
-                    break;
-
-                auto lane = r.removeFromTop (56);
-                r.removeFromTop (6);
-                auto header = lane.removeFromLeft (150).toFloat();
-                lane.removeFromLeft (6);
-
-                g.setColour (colours::panel);
-                g.fillRoundedRectangle (header, metrics::radius);
-                auto text = header.reduced (10.0f, 0.0f);
-                g.setColour (t->getColour());
-                g.fillRoundedRectangle (text.removeFromLeft (8.0f).withSizeKeepingCentre (8.0f, 8.0f), 2.0f);
-                text.removeFromLeft (8.0f);
-                g.setColour (colours::text);
-                g.setFont (fonts::ui (12.5f, fonts::Weight::medium));
-                g.drawText (t->getName(), text, juce::Justification::centredLeft, true);
-
-                g.setColour (colours::emptySlot);
-                g.fillRoundedRectangle (lane.toFloat(), metrics::radius);
-            }
-        }
-
-        auto note = getLocalBounds().withSizeKeepingCentre (440, 64);
-        g.setColour (colours::panelLight);
-        g.fillRoundedRectangle (note.toFloat(), 10.0f);
-        g.setColour (colours::text);
-        g.setFont (fonts::ui (13.0f, fonts::Weight::medium));
-        g.drawText ("L'arrangement arriva nella prossima fase", note.removeFromTop (38), juce::Justification::centredBottom);
-        g.setColour (colours::textDim);
-        g.setFont (fonts::ui (12.0f));
-        g.drawText ("Per ora lavora nella session view (Tab per tornarci)", note, juce::Justification::centredTop);
-    }
-
-private:
-    MainComponent& owner;
-};
-
-//==============================================================================
 MainComponent::MainComponent (te::Engine& e)
     : engine (e), topBar (e), browser (e)
 {
-    arrangement = std::make_unique<ArrangementPlaceholder> (*this);
+    arrangement.getSelectedTrack = [this] { return sessionView.getSelectedTrack(); };
+    arrangement.onTrackSelected = [this] (te::AudioTrack* t) { sessionView.selectTrack (t); };
+    arrangement.onStatus = [this] (const juce::String& s) { status (s); };
 
     topBar.onViewChanged = [this] (TopBar::View v) { setView (v); };
     topBar.onShowMenu = [this] { showMainMenu(); };
@@ -107,7 +39,10 @@ MainComponent::MainComponent (te::Engine& e)
         repaint (0, getHeight() - getDetailHeight() - statusBarHeight, getWidth(), detailHeaderHeight);
     };
     sessionView.onStatus = [this] (const juce::String& s) { status (s); };
-    sessionView.onClipSelected = [this] (te::Clip* c)
+    sessionView.onClipSelected = [this] (te::Clip* c) { showClip (c); };
+    arrangement.onClipSelected = [this] (te::Clip* c) { showClip (c); };
+
+    showClip = [this] (te::Clip* c)
     {
         auto midi = dynamic_cast<te::MidiClip*> (c);
         pianoRoll.setClip (midi);
@@ -156,7 +91,7 @@ MainComponent::MainComponent (te::Engine& e)
                                                              &keyboardButton, &addDeviceButton })
         addAndMakeVisible (c);
 
-    addChildComponent (*arrangement);
+    addChildComponent (arrangement);
     addChildComponent (keyboard);
     addChildComponent (pianoRoll);
     setDetail (Detail::devices);
@@ -203,6 +138,8 @@ juce::File MainComponent::getProjectsFolder()
 void MainComponent::setEdit (std::unique_ptr<te::Edit> newEdit)
 {
     sessionView.setEdit (nullptr);
+    arrangement.setEdit (nullptr);
+    pianoRoll.setClip (nullptr);
     deviceChain.setTrack (nullptr);
     topBar.setEdit (nullptr);
 
@@ -225,6 +162,7 @@ void MainComponent::setEdit (std::unique_ptr<te::Edit> newEdit)
 
     topBar.setEdit (edit.get());
     sessionView.setEdit (edit.get());
+    arrangement.setEdit (edit.get());
 
     if (auto top = getTopLevelComponent(); top != nullptr && top != this)
         top->setName ("Sonora - " + te::EditFileOperations (*edit).getEditFile().getFileNameWithoutExtension());
@@ -399,7 +337,7 @@ void MainComponent::resized()
     keyboard.setKeyWidth (juce::jmax (12.0f, (float) body.getWidth() / 52.0f));
 
     sessionView.setBounds (r);
-    arrangement->setBounds (r);
+    arrangement.setBounds (r);
 }
 
 //==============================================================================
@@ -408,7 +346,10 @@ void MainComponent::setView (TopBar::View v)
     view = v;
     topBar.setView (v);
     sessionView.setVisible (v == TopBar::View::session);
-    arrangement->setVisible (v == TopBar::View::arrangement);
+    arrangement.setVisible (v == TopBar::View::arrangement);
+
+    if (v == TopBar::View::arrangement)
+        arrangement.grabKeyboardFocus();
 }
 
 int MainComponent::getDetailHeight() const
