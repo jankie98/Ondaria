@@ -8,6 +8,7 @@
 
 #include "MainComponent.h"
 #include "SonoraBehaviour.h"
+#include "Settings.h"
 #include "Theme.h"
 #include "host/IsolatedPluginScanner.h"
 #include "host/PluginFormats.h"
@@ -56,6 +57,13 @@ public:
         auto& pm = engine->getPluginManager();
         addAllPluginFormats (pm.pluginFormatManager);
         pm.knownPluginList.setCustomScanner (std::make_unique<IsolatedPluginScanner>());
+
+        // Il tema scelto l'ultima volta, prima di creare la finestra
+        if (auto settings = openUiSettings (*engine))
+        {
+            theme::apply (theme::load (*settings));
+            applyUiScale (loadUiScale (*settings));
+        }
 
         mainWindow = std::make_unique<MainWindow> ("Sonora " + getApplicationVersion(), *engine);
     }

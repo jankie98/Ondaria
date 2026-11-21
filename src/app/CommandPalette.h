@@ -33,6 +33,7 @@ public:
     static int matchScore (const juce::String& query, const juce::String& text);
 
     void paint (juce::Graphics&) override;
+    void lookAndFeelChanged() override;
     void paintOverChildren (juce::Graphics&) override;
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;

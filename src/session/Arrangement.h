@@ -22,6 +22,14 @@ juce::Array<tracktion::Clip*> getClips (tracktion::AudioTrack&);
 /** Battute in beat secondo il metro all'inizio del progetto. */
 tracktion::BeatDuration barLength (tracktion::Edit&);
 
+/** Griglia adattiva: il passo piu' fine (in beat, potenze di due della battuta) che
+    resta largo almeno minPixels allo zoom dato. Piu' ingrandisci, piu' la griglia
+    si infittisce; quando allontani, passa a battute intere e poi a gruppi di battute. */
+double adaptiveGridBeats (double pixelsPerBeat, double beatsPerBar, double minPixels = 14.0);
+
+/** Nome del passo di griglia ("1/16", "1 battuta", "4 battute"...). */
+juce::String gridName (double beats, double beatsPerBar);
+
 /** Crea una clip MIDI vuota a partire da start. */
 tracktion::MidiClip* createMidiClip (tracktion::AudioTrack&, tracktion::BeatPosition start, int lengthInBars = 1);
 

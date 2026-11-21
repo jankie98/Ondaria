@@ -50,11 +50,11 @@ private:
     IconButton menuButton { "Menu", icons::menu() };
     FlatButton sessionButton { "Session" }, arrangementButton { "Arrangement" };
     IconButton undoButton { "Annulla (Ctrl+Z)", icons::undo() }, redoButton { "Ripeti (Ctrl+Shift+Z)", icons::redo() };
-    IconButton playButton { "Riproduci (Spazio)", icons::play() }, stopButton { "Stop", icons::stop() },
+    IconButton playButton { "Riproduci (Spazio)", icons::play() }, stopButton { "Stop (Spazio di nuovo per fermare)", icons::stop() },
                recordButton { "Registra nell'arrangement (F9)", icons::record() },
                captureButton { "Cattura quello che hai appena suonato (Ctrl+Shift+C)", icons::capture() },
                automationButton { "Scrivi automazioni: i movimenti delle manopole mentre il brano suona diventano punti", icons::automation() },
-               loopButton { "Loop", icons::loop() }, metronomeButton { "Metronomo", icons::metronome() };
+               loopButton { "Loop: ripete il tratto segnato sul righello", icons::loop() }, metronomeButton { "Metronomo", icons::metronome() };
     DragNumber tempo { 20.0, 999.0, 0.01, 2, "BPM" };
     FlatButton timeSigButton { "4/4", 13.0f }, quantisationButton { "1 battuta", 12.0f };
     FlatButton paletteButton { "Cerca azioni, device, plugin", 12.5f };

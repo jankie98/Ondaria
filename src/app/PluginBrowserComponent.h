@@ -41,6 +41,11 @@ public:
 
     void resized() override;
     void paint (juce::Graphics&) override;
+    void lookAndFeelChanged() override
+    {
+        list.setColour (juce::ListBox::backgroundColourId, colours::sidebar);
+        search.setTextToShowWhenEmpty ("Cerca nel browser", colours::textDim);
+    }
     void paintOverChildren (juce::Graphics&) override;
 
 private:

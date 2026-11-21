@@ -102,12 +102,102 @@ bool isExplicitlyArmed (const te::AudioTrack& t)
 Recorder::Recorder (te::Edit& e)
     : edit (e)
 {
+    keyDispatcher->listeners.add (this);
     startTimerHz (30);
 }
 
 Recorder::~Recorder()
 {
+    keyDispatcher->listeners.remove (this);
     stopTimer();
+}
+
+//==============================================================================
+const LiveTake* Recorder::getLiveTake (const te::AudioTrack& t) const
+{
+    auto it = liveTakes.find (t.itemID);
+    return it != liveTakes.end() ? &it->second : nullptr;
+}
+
+void Recorder::midiKeyStateChanged (te::AudioTrack* t, const juce::Array<int>& on, const juce::Array<int>&,
+                                    const juce::Array<int>& off)
+{
+    if (t != nullptr && &t->edit == &edit)
+        notesReceived (*t, on, off);
+}
+
+void Recorder::notesReceived (te::AudioTrack& t, const juce::Array<int>& on, const juce::Array<int>& off)
+{
+    auto it = liveTakes.find (t.itemID);
+
+    if (it == liveTakes.end())
+        return;
+
+    // Il motore raccoglie i tasti ogni poche decine di millisecondi: il tempo e' quello
+    // della testina adesso, abbastanza preciso per un'anteprima
+    const auto now = edit.getTransport().getPosition();
+    auto& notes = it->second.notes;
+
+    for (auto pitch : on)
+        notes.push_back ({ pitch, now, now, true });
+
+    for (auto pitch : off)
+        for (auto n = notes.rbegin(); n != notes.rend(); ++n)
+            if (n->held && n->pitch == pitch)
+            {
+                n->held = false;
+                n->end = std::max (now, n->start);
+                break;
+            }
+}
+
+void Recorder::updateLiveTakes()
+{
+    const auto now = edit.getTransport().getPosition();
+    std::map<te::EditItemID, LiveTake> active;
+
+    for (auto t : te::getAudioTracks (edit))
+    {
+        // Bersaglio della registrazione: la traccia (arrangement) o uno dei suoi slot
+        juce::Array<te::EditItemID> targets { t->itemID };
+
+        for (auto slot : t->getClipSlotList().getClipSlots())
+            if (slot != nullptr)
+                targets.add (slot->itemID);
+
+        for (auto inst : edit.getAllInputDevices())
+        {
+            if (inst->getInputDevice().isTrackDevice())
+                continue;
+
+            for (auto target : targets)
+            {
+                if (! inst->isRecording (target))
+                    continue;
+
+                const bool first = active.find (t->itemID) == active.end();
+                auto& take = active[t->itemID];
+
+                if (first)
+                {
+                    if (auto old = liveTakes.find (t->itemID); old != liveTakes.end())
+                        take = std::move (old->second);
+                    else
+                        take.start = inst->getPunchInTime (target);
+                }
+
+                if (take.audio == nullptr)
+                    if (auto f = inst->getRecordingFile (target); f != juce::File())
+                        take.audio = edit.engine.getRecordingThumbnailManager().getThumbnailFor (f);
+
+                for (auto& n : take.notes)
+                    if (n.held)
+                        n.end = std::max (now, n.start);
+            }
+        }
+    }
+
+    liveTakes = std::move (active);
 }
 
 void Recorder::setSelectedTrack (te::AudioTrack* t)
@@ -522,6 +612,8 @@ void Recorder::removeIdleSlotTargets()
 
 void Recorder::timerCallback()
 {
+    updateLiveTakes();
+
     for (auto it = pendingAligns.begin(); it != pendingAligns.end();)
     {
         auto clip = te::findClipForID (edit, it->clipID);

@@ -168,7 +168,7 @@ public:
 
             if (p % 12 == 0)
             {
-                g.setColour (colours::background);
+                g.setColour (colours::ink);
                 g.setFont (fonts::mono (9.5f));
                 g.drawText (notes::noteName (p), key.withTrimmedRight (4), juce::Justification::centredRight);
             }

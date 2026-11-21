@@ -17,7 +17,6 @@ CommandPalette::CommandPalette()
     input.setFont (fonts::ui (15.0f));
     input.setTextToShowWhenEmpty ("Scrivi un comando o il nome di un device", colours::textDim);
     input.setIndents (40, 10);
-    input.setColour (juce::TextEditor::backgroundColourId, colours::panelLight);
     input.setColour (juce::TextEditor::focusedOutlineColourId, juce::Colours::transparentBlack);
     input.onTextChange = [this] { filter(); };
     input.onReturnKey = [this] { run (list.getSelectedRow()); };
@@ -27,9 +26,15 @@ CommandPalette::CommandPalette()
 
     list.setModel (this);
     list.setRowHeight (34);
-    list.setColour (juce::ListBox::backgroundColourId, colours::panelLight);
     addAndMakeVisible (list);
+    lookAndFeelChanged();
+}
 
+void CommandPalette::lookAndFeelChanged()
+{
+    input.setColour (juce::TextEditor::backgroundColourId, colours::panelLight);
+    input.setTextToShowWhenEmpty ("Scrivi un comando o il nome di un device", colours::textDim);
+    list.setColour (juce::ListBox::backgroundColourId, colours::panelLight);
 }
 
 void CommandPalette::show (std::vector<Command> c)

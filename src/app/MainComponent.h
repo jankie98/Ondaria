@@ -60,6 +60,11 @@ private:
     void insertDevice (const juce::PluginDescription&);
     void showAudioSettings();
     void showMainMenu();
+    void toggleTheme();
+    void togglePerformance();
+    int browserWidth() const;
+    juce::PopupMenu scaleMenu();
+    void setUiScale (float);
     void showCommandPalette();
     void setView (TopBar::View);
 
@@ -99,12 +104,14 @@ private:
     juce::MidiKeyboardState keyboardState;
     juce::MidiKeyboardComponent keyboard { keyboardState, juce::MidiKeyboardComponent::horizontalKeyboard };
 
-    juce::String statusText;
+    juce::String statusText, hintText;
+    juce::TooltipWindow tooltipWindow { this, 700 };
     juce::uint32 statusTime = 0;
     TopBar::View view = TopBar::View::session;
 
     // Altezza del pannello dettaglio mentre scorre verso quella nuova
     float detailHeightNow = 0.0f;
+    bool wasFullScreenBeforePerformance = false;
     bool detailAnimating = false;
     juce::VBlankAttachment vblank { this, [this] { animateDetail(); } };
 };

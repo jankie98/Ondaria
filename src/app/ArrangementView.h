@@ -30,6 +30,7 @@ namespace sonora
       quali parametri mostrare.
 */
 class ArrangementView final : public juce::Component,
+                              public HintProvider,
                               public juce::FileDragAndDropTarget,
                               public juce::DragAndDropTarget,
                               private juce::Timer
@@ -47,6 +48,8 @@ public:
     std::function<void (tracktion::AudioTrack*)> onTrackSelected;
     std::function<void (tracktion::Clip*)> onClipSelected;
     std::function<void (const juce::String&)> onStatus;
+
+    juce::String getHintAt (juce::Point<int>) override;
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -123,6 +126,11 @@ private:
     bool needsFit = true; // l'adattamento aspetta di conoscere la larghezza vera
     int scrollY = 0, laneHeight = 64;
     double snapBeats = 1.0;
+    bool adaptiveGrid = true;       ///< la griglia segue lo zoom (default)
+
+    /** Passo della griglia attuale in beat (adattivo o fisso). */
+    double gridBeats() const;
+    void updateSnapButton();
 
     Drag drag = Drag::none;
     tracktion::BeatPosition dragClipStart;
@@ -134,7 +142,7 @@ private:
     int dragPoint = -1, dragStartY = 0;
     float dragCurveStart = 0.0f;
 
-    FlatButton backButton { "Torna all'arrangement", 12.0f }, snapButton { "Griglia: 1/4", 12.0f },
+    FlatButton backButton { "Torna all'arrangement", 12.0f }, snapButton { "Griglia: auto", 12.0f },
                fitButton { "Adatta", 12.0f };
 };
 

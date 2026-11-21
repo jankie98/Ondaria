@@ -13,6 +13,41 @@
 namespace sonora
 {
 
+/** Componenti grandi (arrangement, slot, piano roll) che spiegano cosa si puo' fare
+    nel punto sotto il mouse. Il suggerimento compare nella barra di stato, senza
+    finestrelle: le finestrelle restano per i pulsanti. */
+struct HintProvider
+{
+    virtual ~HintProvider() = default;
+
+    /** Suggerimento per il punto (coordinate del componente); vuoto se non c'e'. */
+    virtual juce::String getHintAt (juce::Point<int>) = 0;
+};
+
+/** Suggerimento per il componente sotto il mouse dentro root: prima un HintProvider,
+    poi il tooltip di un pulsante (risalendo ai genitori). */
+inline juce::String hintUnderMouse (juce::Component& root)
+{
+    auto source = juce::Desktop::getInstance().getMainMouseSource();
+    auto* c = source.getComponentUnderMouse();
+
+    if (c == nullptr || ! (c == &root || root.isParentOf (c)))
+        return {};
+
+    for (; c != nullptr && c != root.getParentComponent(); c = c->getParentComponent())
+    {
+        if (auto hp = dynamic_cast<HintProvider*> (c))
+            if (auto h = hp->getHintAt (c->getLocalPoint (nullptr, source.getScreenPosition()).roundToInt()); h.isNotEmpty())
+                return h;
+
+        if (auto tc = dynamic_cast<juce::TooltipClient*> (c))
+            if (auto t = tc->getTooltip(); t.isNotEmpty())
+                return t;
+    }
+
+    return {};
+}
+
 /** Icone vettoriali disegnate a tratto, in un riquadro 0..1. */
 struct Icon
 {

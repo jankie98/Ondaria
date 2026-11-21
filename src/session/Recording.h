@@ -38,10 +38,27 @@ void setInput (tracktion::AudioTrack&, const juce::String& inputID);
 /** Armamento scelto con il pulsante (salvato nel progetto, non entra nell'undo). */
 bool isExplicitlyArmed (const tracktion::AudioTrack&);
 
+/** Una nota suonata durante una registrazione in corso (per l'anteprima). */
+struct LiveNote
+{
+    int pitch = 60;
+    tracktion::TimePosition start, end;
+    bool held = true;   ///< ancora premuta: la fine segue la testina
+};
+
+/** Quello che si sta registrando su una traccia, per disegnarlo mentre arriva. */
+struct LiveTake
+{
+    tracktion::TimePosition start;                                   ///< inizio, in tempo dell'edit
+    std::vector<LiveNote> notes;                                     ///< note MIDI arrivate finora
+    tracktion::RecordingThumbnailManager::Thumbnail::Ptr audio;      ///< forma d'onda dell'audio
+};
+
 //==============================================================================
 /** Gestisce la registrazione di un progetto. Ne esiste uno per Edit e va
     distrutto prima dell'Edit. */
-class Recorder final : private juce::Timer
+class Recorder final : private juce::Timer,
+                       private tracktion::MidiInputDevice::MidiKeyChangeDispatcher::Listener
 {
 public:
     explicit Recorder (tracktion::Edit&);
@@ -95,6 +112,13 @@ public:
     /** True se si sta registrando nell'arrangement o in uno slot. */
     bool isRecording() const;
 
+    /** Registrazione in corso sulla traccia (arrangement o slot), con note e forma
+        d'onda arrivate finora; nullptr se la traccia non registra. */
+    const LiveTake* getLiveTake (const tracktion::AudioTrack&) const;
+
+    /** Note premute e rilasciate sulla traccia (le chiama il motore; pubblica per i test). */
+    void notesReceived (tracktion::AudioTrack&, const juce::Array<int>& on, const juce::Array<int>& off);
+
     /** Chiamata quando una registrazione in uno slot e' diventata una clip. */
     std::function<void (tracktion::Clip&)> onSlotRecorded;
 
@@ -112,6 +136,9 @@ private:
     };
 
     void timerCallback() override;
+    void updateLiveTakes();
+    void midiKeyStateChanged (tracktion::AudioTrack*, const juce::Array<int>& on, const juce::Array<int>& vels,
+                              const juce::Array<int>& off) override;
     void finishSlotClip (tracktion::Clip&, std::optional<tracktion::MonotonicBeat> launchAt, bool launch);
     juce::Array<tracktion::InputDeviceInstance*> inputsFor (const tracktion::AudioTrack&) const;
     void removeIdleSlotTargets();
@@ -119,6 +146,8 @@ private:
     tracktion::EditItemID selectedTrackID;
     std::vector<PendingAlign> pendingAligns;
     int ticksUntilSync = 0;
+    std::map<tracktion::EditItemID, LiveTake> liveTakes;
+    juce::SharedResourcePointer<tracktion::MidiInputDevice::MidiKeyChangeDispatcher> keyDispatcher;
 
     JUCE_DECLARE_WEAK_REFERENCEABLE (Recorder)
     JUCE_DECLARE_NON_COPYABLE (Recorder)

@@ -138,9 +138,35 @@ struct RecordingTests final : public juce::UnitTest
             player.process (1.0, { { 0.2, 60, true }, { 0.4, 60, false }, { 0.5, 64, true }, { 0.7, 64, false } });
             expect (recorder.isRecordingInto (t1));
 
+            // Anteprima dal vivo: la presa esiste e raccoglie le note man mano
+            player.pump (50);
+            const auto* take = recorder.getLiveTake (t1);
+            expect (take != nullptr);
+            expect (recorder.getLiveTake (t2) == nullptr);
+
+            if (take != nullptr)
+            {
+                expectWithinAbsoluteError (take->start.inSeconds(), 0.0, 0.05);
+                recorder.notesReceived (t1, { 67 }, {});
+                player.process (0.25);
+                player.pump (50);
+                recorder.notesReceived (t1, {}, { 67 });
+                take = recorder.getLiveTake (t1);
+                expect (take != nullptr && take->notes.size() == 1);
+
+                if (take != nullptr && take->notes.size() == 1)
+                {
+                    const auto& n = take->notes.front();
+                    expectEquals (n.pitch, 67);
+                    expect (! n.held);
+                    expectWithinAbsoluteError ((n.end - n.start).inSeconds(), 0.25, 0.08);
+                }
+            }
+
             expect (recorder.toggleArrangementRecording().wasOk());
             player.pump();
             expect (! transport.isRecording());
+            expect (recorder.getLiveTake (t1) == nullptr);
             transport.stop (false, false);
             player.process (0.2);
             player.pump();
@@ -257,6 +283,15 @@ struct RecordingTests final : public juce::UnitTest
                 expect (recorder.startSlotRecording (*slot).wasOk());
 
                 player.process (1.0, {}, true);
+                player.pump (50);
+
+                // La forma d'onda cresce mentre si registra
+                const auto* take = recorder.getLiveTake (t2);
+                expect (take != nullptr && take->audio != nullptr);
+
+                if (take != nullptr && take->audio != nullptr)
+                    expect (take->audio->thumb->getTotalLength() > 0.5, juce::String (take->audio->thumb->getTotalLength()));
+
                 recorder.stopAllSlotRecordings();
                 transport.stop (false, false);
                 player.pump (200);

@@ -52,7 +52,7 @@ namespace
 ArrangementView::ArrangementView()
 {
     backButton.setBaseColour (colours::panel);
-    backButton.setOnColours (colours::warning, colours::background);
+    backButton.setOnColours (colours::warning, colours::ink);
     backButton.setTooltip ("Ferma le clip della session e torna a suonare la linea del tempo");
     backButton.onClick = [this]
     {
@@ -544,7 +544,8 @@ void ArrangementView::showLaneMenu (const AutomationLane& l, int pointIndex)
 
 te::BeatPosition ArrangementView::snap (double beat) const
 {
-    return te::BeatPosition::fromBeats (juce::jmax (0.0, std::round (beat / snapBeats) * snapBeats));
+    const double step = gridBeats();
+    return te::BeatPosition::fromBeats (juce::jmax (0.0, std::round (beat / step) * step));
 }
 
 te::SmartThumbnail* ArrangementView::getThumbnail (te::WaveAudioClip& c)
@@ -564,6 +565,8 @@ void ArrangementView::paint (juce::Graphics& g)
 
     if (edit == nullptr)
         return;
+
+    updateSnapButton();
 
     auto& ts = edit->tempoSequence;
     const int beatsPerBar = (int) arrangement::barLength (*edit).inBeats();
@@ -587,6 +590,42 @@ void ArrangementView::paint (juce::Graphics& g)
         g.fillRect (loopRect);
     }
 
+    // Linee della griglia sotto le battute: beat e suddivisioni compaiono ingrandendo
+    {
+        const double step = std::min (gridBeats(), 1.0);
+
+        if (step * pixelsPerBeat >= 8.0 && step < (double) beatsPerBar)
+        {
+            const double first = std::floor (viewStart / step) * step;
+
+            for (double b = first; ; b += step)
+            {
+                const int x = xForBeat (b);
+
+                if (x > lanes.getRight())
+                    break;
+
+                if (x < lanes.getX())
+                    continue;
+
+                const bool onBeat = std::abs (b - std::round (b)) < 1.0e-6;
+                g.setColour (colours::divider.withAlpha (onBeat ? 0.9f : 0.45f));
+                g.fillRect (x, lanes.getY(), 1, lanes.getHeight());
+
+                // Etichette dei beat (3.2, 3.3...) quando c'e' spazio
+                if (onBeat && pixelsPerBeat >= 44.0 && (int) std::round (b) % beatsPerBar != 0)
+                {
+                    const int bar = (int) std::floor (std::round (b) / beatsPerBar);
+                    const int beat = (int) std::round (b) % beatsPerBar;
+                    g.setColour (colours::textDim.withAlpha (0.6f));
+                    g.setFont (fonts::mono (9.0f));
+                    g.drawText (juce::String (bar + 1) + "." + juce::String (beat + 1), x + 3, ruler.getY(), 40,
+                                ruler.getHeight(), juce::Justification::centredLeft);
+                }
+            }
+        }
+    }
+
     // Quante battute saltare tra le etichette per non affollarle
     int labelEvery = 1;
 
@@ -601,6 +640,9 @@ void ArrangementView::paint (juce::Graphics& g)
 
         if (x > lanes.getRight())
             break;
+
+        if (x < lanes.getX())
+            continue;
 
         const bool labelled = bar % labelEvery == 0;
 
@@ -724,10 +766,17 @@ void ArrangementView::paint (juce::Graphics& g)
                     g.fillRoundedRectangle (rec, metrics::radius);
                     g.setColour (colours::record);
                     g.fillRoundedRectangle (rec.removeFromTop (16.0f), metrics::radius);
-                    g.setColour (colours::background);
+                    g.setColour (colours::ink);
                     g.setFont (fonts::ui (10.5f, fonts::Weight::medium));
                     g.drawText ("Registrazione", rec.withHeight (16.0f).reduced (6.0f, 0.0f).withY (rec.getY() - 16.0f),
                                 juce::Justification::centredLeft, true);
+
+                    // Quello che sta arrivando: forma d'onda o note, mentre lo suoni
+                    if (auto take = recorder->getLiveTake (*t))
+                        recordingui::drawLiveTake (g, *take, rec.reduced (2.0f, 3.0f), transport.getPosition(),
+                                                   [this, &ts] (te::TimePosition time)
+                                                   { return (float) xForBeat (ts.toBeats (time).inBeats()); },
+                                                   colours::record.brighter (0.35f));
                 }
             }
         }
@@ -759,6 +808,24 @@ void ArrangementView::drawClip (juce::Graphics& g, te::Clip& c, juce::Rectangle<
     const auto colour = colourOf (c);
     const bool selected = selectedClip.get() == &c;
 
+    // Zoom semantico: molto lontano una clip e' solo un blocco di colore
+    if (r.getWidth() < 24)
+    {
+        g.setColour (colour.withAlpha (0.75f));
+        g.fillRoundedRectangle (r.toFloat(), 3.0f);
+
+        if (isOnFrozenTrack (c))
+            freezeui::drawFrozenVeil (g, r.toFloat(), 3.0f);
+
+        if (selected)
+        {
+            g.setColour (colours::text);
+            g.drawRoundedRectangle (r.toFloat().reduced (0.5f), 3.0f, 1.5f);
+        }
+
+        return;
+    }
+
     g.setColour (colour.withAlpha (0.28f));
     g.fillRoundedRectangle (r.toFloat(), 5.0f);
     auto title = r.removeFromTop (16);
@@ -766,9 +833,12 @@ void ArrangementView::drawClip (juce::Graphics& g, te::Clip& c, juce::Rectangle<
     g.fillRoundedRectangle (title.toFloat(), 5.0f);
     g.fillRect (title.withTrimmedTop (8));
 
-    g.setColour (colours::background);
-    g.setFont (fonts::ui (11.0f, fonts::Weight::medium));
-    g.drawText (c.getName(), title.reduced (6, 0), juce::Justification::centredLeft, true);
+    if (title.getWidth() >= 36)
+    {
+        g.setColour (colours::ink);
+        g.setFont (fonts::ui (11.0f, fonts::Weight::medium));
+        g.drawText (c.getName(), title.reduced (6, 0), juce::Justification::centredLeft, true);
+    }
 
     auto body = r.reduced (2, 3);
 
@@ -791,6 +861,10 @@ void ArrangementView::drawClip (juce::Graphics& g, te::Clip& c, juce::Rectangle<
             const double offset = c.getOffsetInBeats().inBeats();
             g.setColour (colour.brighter (0.4f));
 
+            // Ingrandendo le note diventano piu' spesse e mostrano la velocity
+            const bool detailed = pixelsPerBeat >= 48.0;
+            const float noteH = detailed ? juce::jlimit (2.0f, 6.0f, (float) body.getHeight() / (float) range) : 2.0f;
+
             for (auto n : notes)
             {
                 const double s = (n->getStartBeat().inBeats() - offset) / length;
@@ -802,7 +876,16 @@ void ArrangementView::drawClip (juce::Graphics& g, te::Clip& c, juce::Rectangle<
                 const float x1 = (float) body.getX() + (float) body.getWidth() * (float) juce::jmax (0.0, s);
                 const float x2 = (float) body.getX() + (float) body.getWidth() * (float) juce::jmin (1.0, e);
                 const float y = (float) body.getBottom() - (float) body.getHeight() * (float) (n->getNoteNumber() - lo + 1) / (float) range;
-                g.fillRect (x1, y, juce::jmax (1.5f, x2 - x1), 2.0f);
+
+                if (detailed)
+                {
+                    g.setColour (colour.brighter (0.4f).withAlpha (0.45f + 0.55f * (float) n->getVelocity() / 127.0f));
+                    g.fillRoundedRectangle (x1, y, juce::jmax (2.0f, x2 - x1 - 1.0f), noteH, 1.0f);
+                }
+                else
+                {
+                    g.fillRect (x1, y, juce::jmax (1.5f, x2 - x1), noteH);
+                }
             }
         }
     }
@@ -1140,7 +1223,7 @@ void ArrangementView::mouseDrag (const juce::MouseEvent& e)
     else if (drag == Drag::resize)
     {
         const auto end = snap (dragClipStart.inBeats() + dragClipLength.inBeats() + beat - dragStartBeat);
-        arrangement::resizeClip (*selectedClip, end - dragClipStart, te::BeatDuration::fromBeats (snapBeats));
+        arrangement::resizeClip (*selectedClip, end - dragClipStart, te::BeatDuration::fromBeats (gridBeats()));
     }
 
     repaint();
@@ -1289,19 +1372,103 @@ void ArrangementView::showClipMenu (te::Clip& c)
     m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this).withMousePosition());
 }
 
+juce::String ArrangementView::getHintAt (juce::Point<int> pos)
+{
+    if (edit == nullptr)
+        return {};
+
+    static const juce::String zoomHint = juce::String::fromUTF8 ("  \xc2\xb7  Ctrl+rotella zoom, Shift+rotella scorre");
+
+    if (rulerArea().contains (pos))
+        return juce::String::fromUTF8 ("Righello: clic per spostare la testina \xc2\xb7 trascina per disegnare il loop");
+
+    if (auto l = automationLaneAt (pos); l && pos.x >= lanesArea().getX())
+        return automationPointAt (*l, pos) >= 0
+                 ? juce::String::fromUTF8 ("Punto: trascina per spostarlo (Ctrl senza griglia) \xc2\xb7 doppio clic per toglierlo")
+                 : juce::String::fromUTF8 ("Corsia di automazione: clic per aggiungere un punto \xc2\xb7 Alt+trascina per curvare un tratto");
+
+    if (pos.x < lanesArea().getX())
+    {
+        if (auto t = trackAtY (pos.y))
+        {
+            const int index = te::getAudioTracks (*edit).indexOf (t);
+
+            if (recorder != nullptr && armArea (index).expanded (4).contains (pos))
+                return recordingui::armTooltip (*recorder, *t);
+
+            if (automationButtonArea (index).expanded (2).contains (pos))
+                return "Corsie di automazione della traccia";
+
+            return juce::String::fromUTF8 ("Traccia: clic per selezionarla \xc2\xb7 clic destro per ingresso, automazioni, congela");
+        }
+
+        return {};
+    }
+
+    if (auto c = clipAt (pos))
+    {
+        if (isOnFrozenTrack (*c))
+            if (auto t = dynamic_cast<te::AudioTrack*> (c->getTrack()))
+                return freezeui::frozenNotice (*t);
+
+        if (clipRect (*c).getRight() - pos.x <= resizeEdge)
+            return "Trascina il bordo per allungare o accorciare la clip";
+
+        return juce::String::fromUTF8 ("Clip: trascina per spostarla \xc2\xb7 Ctrl+D duplica \xc2\xb7 Canc elimina \xc2\xb7 clic destro per il menu");
+    }
+
+    if (auto t = trackAtY (pos.y))
+    {
+        if (freeze::isFrozen (*t))
+            return freezeui::frozenNotice (*t);
+
+        return juce::String::fromUTF8 ("Doppio clic per una nuova clip MIDI \xc2\xb7 trascina qui un file audio o MIDI") + zoomHint;
+    }
+
+    return {};
+}
+
+double ArrangementView::gridBeats() const
+{
+    if (! adaptiveGrid)
+        return snapBeats;
+
+    const double bar = edit != nullptr ? arrangement::barLength (*edit).inBeats() : 4.0;
+    return arrangement::adaptiveGridBeats (pixelsPerBeat, bar);
+}
+
+void ArrangementView::updateSnapButton()
+{
+    const double bar = edit != nullptr ? arrangement::barLength (*edit).inBeats() : 4.0;
+    const auto text = "Griglia: " + (adaptiveGrid ? "auto " + arrangement::gridName (gridBeats(), bar)
+                                                   : arrangement::gridName (snapBeats, bar));
+
+    if (snapButton.getButtonText() != text)
+        snapButton.setButtonText (text);
+}
+
 void ArrangementView::showSnapMenu()
 {
     juce::PopupMenu m;
+    m.addItem ("Adattiva (segue lo zoom)", true, adaptiveGrid, [this]
+    {
+        adaptiveGrid = true;
+        updateSnapButton();
+        repaint();
+    });
+    m.addSeparator();
     const std::pair<const char*, double> sizes[] = { { "1 battuta", 0.0 }, { "1/2", 2.0 }, { "1/4", 1.0 },
                                                      { "1/8", 0.5 }, { "1/16", 0.25 } };
 
     for (auto [name, beats] : sizes)
     {
         const double value = beats > 0.0 ? beats : (edit != nullptr ? arrangement::barLength (*edit).inBeats() : 4.0);
-        m.addItem (name, true, std::abs (snapBeats - value) < 1.0e-6, [this, name = juce::String (name), value]
+        m.addItem (name, true, ! adaptiveGrid && std::abs (snapBeats - value) < 1.0e-6, [this, value]
         {
             snapBeats = value;
-            snapButton.setButtonText ("Griglia: " + name);
+            adaptiveGrid = false;
+            updateSnapButton();
+            repaint();
         });
     }
 
@@ -1346,7 +1513,7 @@ void ArrangementView::dropFile (const juce::File& f, juce::Point<int> pos)
     }
 
     edit->getUndoManager().beginNewTransaction ("Importa " + f.getFileName());
-    const auto start = te::BeatPosition::fromBeats (std::floor (juce::jmax (0.0, beatForX (pos.x)) / snapBeats) * snapBeats);
+    const auto start = te::BeatPosition::fromBeats (std::floor (juce::jmax (0.0, beatForX (pos.x)) / gridBeats()) * gridBeats());
 
     if (auto c = arrangement::createClipFromFile (*t, start, f))
     {

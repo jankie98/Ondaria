@@ -28,6 +28,36 @@ te::BeatDuration barLength (te::Edit& e)
     return te::BeatDuration::fromBeats ((double) e.tempoSequence.getTimeSigAt (0_tp).numerator.get());
 }
 
+double adaptiveGridBeats (double pixelsPerBeat, double beatsPerBar, double minPixels)
+{
+    if (pixelsPerBeat <= 0.0)
+        return beatsPerBar;
+
+    // Dal 1/32 in su: suddivisioni del beat, poi beat, battuta e gruppi di battute
+    for (double beats : { 0.125, 0.25, 0.5, 1.0 })
+        if (beats * pixelsPerBeat >= minPixels)
+            return beats;
+
+    for (double bars = 1.0; bars < 1024.0; bars *= 2.0)
+        if (bars * beatsPerBar * pixelsPerBeat >= minPixels)
+            return bars * beatsPerBar;
+
+    return 1024.0 * beatsPerBar;
+}
+
+juce::String gridName (double beats, double beatsPerBar)
+{
+    if (beats >= beatsPerBar - 1.0e-9)
+    {
+        const int bars = juce::roundToInt (beats / beatsPerBar);
+        return bars == 1 ? juce::String ("1 battuta") : juce::String (bars) + " battute";
+    }
+
+    // Un beat e' un quarto: 1 beat = 1/4, mezzo beat = 1/8...
+    const int denominator = juce::roundToInt (4.0 / beats);
+    return "1/" + juce::String (denominator);
+}
+
 te::MidiClip* createMidiClip (te::AudioTrack& t, te::BeatPosition start, int lengthInBars)
 {
     auto& ts = t.edit.tempoSequence;

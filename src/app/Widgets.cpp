@@ -224,12 +224,12 @@ void IconButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
 
     if (getToggleState())
     {
-        g.setColour (activeColour.withAlpha (0.16f));
+        g.setColour (theme::follow (activeColour).withAlpha (0.16f));
         g.fillRoundedRectangle (r, metrics::radius);
     }
 
     const auto size = juce::jmin (r.getWidth(), r.getHeight()) * 0.42f;
-    auto colour = getToggleState() ? activeColour : (highlighted ? colours::text : iconColour);
+    auto colour = getToggleState() ? theme::follow (activeColour) : (highlighted ? colours::text : theme::follow (iconColour));
 
     if (! isEnabled())
         colour = colour.withMultipliedAlpha (0.35f);
@@ -247,7 +247,7 @@ FlatButton::FlatButton (const juce::String& buttonText, float initialFontSize)
 void FlatButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
 {
     auto r = getLocalBounds().toFloat();
-    auto bg = getToggleState() ? onBackground : baseColour;
+    auto bg = getToggleState() ? theme::follow (onBackground) : theme::follow (baseColour);
 
     if (down)
         bg = (bg.isTransparent() ? colours::hover : bg).brighter (0.1f);
@@ -260,7 +260,7 @@ void FlatButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
         g.fillRoundedRectangle (r, metrics::radius);
     }
 
-    g.setColour (getToggleState() ? onText : (highlighted ? colours::text : colours::textMid));
+    g.setColour (getToggleState() ? theme::follow (onText) : (highlighted ? colours::text : colours::textMid));
 
     if (! isEnabled())
         g.setColour (colours::textDim.withMultipliedAlpha (0.6f));

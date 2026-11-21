@@ -28,6 +28,8 @@ TopBar::TopBar (te::Engine& e) : engine (e)
         addAndMakeVisible (b);
     }
 
+    sessionButton.setTooltip ("Session view: clip in griglia da lanciare (Tab per cambiare vista)");
+    arrangementButton.setTooltip ("Arrangement: il brano sulla linea del tempo (Tab per cambiare vista)");
     sessionButton.onClick = [this] { setView (View::session); if (onViewChanged) onViewChanged (View::session); };
     arrangementButton.onClick = [this] { setView (View::arrangement); if (onViewChanged) onViewChanged (View::arrangement); };
     setView (View::session);
