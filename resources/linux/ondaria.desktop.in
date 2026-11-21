@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Ondaria
+GenericName=Digital Audio Workstation
+GenericName[it]=Workstation audio digitale
+Comment=Make music with clips, scenes and devices
+Comment[it]=Fai musica con clip, scene e device
+Exec=@ONDARIA_EXEC@
+Icon=ondaria
+Terminal=false
+Categories=AudioVideo;Audio;Midi;Music;Sequencer;
+Keywords=DAW;music;audio;midi;recording;plugin;VST;CLAP;LV2;
+StartupWMClass=Ondaria

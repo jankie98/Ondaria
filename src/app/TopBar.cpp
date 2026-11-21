@@ -194,7 +194,7 @@ void TopBar::paint (juce::Graphics& g)
     g.setColour (colours::divider);
     g.fillRect (getLocalBounds().removeFromBottom (1));
 
-    // Logo: un'onda in un cerchio.
+    // Logo di Ondaria: un'onda in un cerchio, come l'icona.
     auto logo = logoArea (getLocalBounds().reduced (12, 0)).withTrimmedLeft (40);
     auto mark = logo.removeFromLeft (22).withSizeKeepingCentre (20, 20).toFloat();
     g.setColour (colours::accent);
@@ -203,11 +203,14 @@ void TopBar::paint (juce::Graphics& g)
     wave.startNewSubPath (mark.getX() + 5.0f, mark.getCentreY() + 2.0f);
     wave.quadraticTo (mark.getX() + 7.5f, mark.getY() + 4.0f, mark.getCentreX(), mark.getCentreY());
     wave.quadraticTo (mark.getRight() - 7.5f, mark.getBottom() - 4.0f, mark.getRight() - 5.0f, mark.getCentreY() - 2.0f);
-    g.setColour (colours::text);
+    // Stesso gradiente dell'icona dell'app.
+    g.setGradientFill (juce::ColourGradient::horizontal (juce::Colour (0xff5ee6d0), mark.getX() + 4.0f,
+                                                         juce::Colour (0xffc08cff), mark.getRight() - 4.0f));
     g.strokePath (wave, juce::PathStrokeType (1.8f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    g.setColour (colours::text);
     logo.removeFromLeft (8);
     g.setFont (fonts::ui (14.0f, fonts::Weight::semibold));
-    g.drawText ("Sonora", logo, juce::Justification::centredLeft);
+    g.drawText ("Ondaria", logo, juce::Justification::centredLeft);
 
     // Contenitore delle viste
     auto views = sessionButton.getBounds().getUnion (arrangementButton.getBounds()).expanded (3);

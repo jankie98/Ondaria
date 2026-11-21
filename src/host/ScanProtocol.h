@@ -22,7 +22,7 @@
 
 namespace sonora::scan
 {
-    inline constexpr const char* executableName = "sonora-plugin-scanner";
+    inline constexpr const char* executableName = "ondaria-plugin-scanner";
     inline constexpr const char* rootTag        = "SONORA-SCAN";
     inline constexpr int protocolVersion        = 1;
 

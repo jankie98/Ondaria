@@ -150,8 +150,8 @@ public:
     {
         host.clap_version = CLAP_VERSION;
         host.host_data = this;
-        host.name = "Sonora";
-        host.vendor = "Sonora";
+        host.name = "Ondaria";
+        host.vendor = "Ondaria";
         host.url = "https://github.com/jankie98";
         host.version = SONORA_VERSION;
         host.get_extension = getExtension;

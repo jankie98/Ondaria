@@ -1,6 +1,8 @@
-# Sonora
+<p align="center"><img src="resources/icons/ondaria.svg" width="128" alt="Icona di Ondaria"></p>
 
-Sonora è una DAW open source per **Linux e Windows**, pensata per un flusso di lavoro basato su clip, scene e device, con un host di plugin che carica tutti i formati principali.
+# Ondaria
+
+Ondaria è una DAW open source per **Linux e Windows**, pensata per un flusso di lavoro basato su clip, scene e device, con un host di plugin che carica tutti i formati principali.
 
 Il progetto è un'implementazione originale (codice, nome e grafica) e non contiene codice o risorse di altre DAW commerciali.
 
@@ -34,7 +36,7 @@ Il progetto è un'implementazione originale (codice, nome e grafica) e non conti
   - La traccia selezionata con ingresso MIDI è armata in automatico (cerchio più tenue): la tastiera la suona e la registra subito.
   - F9 o il pulsante rosso registra nell'arrangement sulle tracce armate.
   - Session: sulle tracce armate gli slot vuoti mostrano un cerchio. Cliccalo per registrare dal prossimo punto di quantizzazione; cliccalo di nuovo per fermarti a tempo: la clip parte subito in loop.
-- **Cattura retroattiva:** Sonora ascolta sempre gli ingressi, anche senza registrare (MIDI degli ultimi minuti, audio dell'ultimo minuto). Il pulsante con la freccia accanto alla registrazione si accende quando hai suonato qualcosa su una traccia armata. Premilo (o Ctrl+Shift+C) e l'ultima idea suonata diventa una clip:
+- **Cattura retroattiva:** Ondaria ascolta sempre gli ingressi, anche senza registrare (MIDI degli ultimi minuti, audio dell'ultimo minuto). Il pulsante con la freccia accanto alla registrazione si accende quando hai suonato qualcosa su una traccia armata. Premilo (o Ctrl+Shift+C) e l'ultima idea suonata diventa una clip:
   - se il brano andava, la clip è allineata alle battute dove l'hai suonata; nella session parte subito in loop, in fase con il resto;
   - a trasporto fermo diventa un loop nuovo al tempo del progetto, lungo 1, 2, 4... battute;
   - nella session va nel primo slot libero della traccia, nell'arrangement sulla linea del tempo;
@@ -68,15 +70,17 @@ Il progetto è un'implementazione originale (codice, nome e grafica) e non conti
 
 ## Scaricare una versione pronta
 
-Ogni build della CI produce un pacchetto per Linux (`Sonora-linux-x64.tar.gz`) e uno per Windows (`Sonora-windows-x64.zip`): apri la scheda **Actions**, scegli l'ultima esecuzione riuscita e scarica l'artefatto in fondo alla pagina. Tieni `sonora-plugin-scanner` nella stessa cartella di Sonora.
+Ogni build della CI produce un pacchetto per Linux (`Ondaria-linux-x64.tar.gz`) e uno per Windows (`Ondaria-windows-x64.zip`): apri la scheda **Actions**, scegli l'ultima esecuzione riuscita e scarica l'artefatto in fondo alla pagina. Tieni `ondaria-plugin-scanner` nella stessa cartella di Ondaria.
+
+Su Linux, dopo aver estratto il pacchetto, `./installa.sh` aggiunge Ondaria al menu delle applicazioni con la sua icona (solo per il tuo utente, senza sudo). Su Windows l'icona è già dentro `Ondaria.exe`.
 
 ## Compilare
 
 Requisiti: CMake 3.22+, un compilatore C++20 (GCC 11+, Clang 14+ o Visual Studio 2022).
 
 ```bash
-git clone --recurse-submodules <url-del-repository> sonora
-cd sonora
+git clone --recurse-submodules <url-del-repository> ondaria
+cd ondaria
 ```
 
 **Linux (Ubuntu/Debian):**
@@ -87,7 +91,9 @@ sudo apt install ninja-build libasound2-dev libjack-jackd2-dev ladspa-sdk libfre
   libxrandr-dev libxrender-dev libxi-dev libglu1-mesa-dev mesa-common-dev libgl-dev
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
-./build/Sonora_artefacts/Release/Sonora
+./build/Sonora_artefacts/Release/Ondaria
+# facoltativo: installa app, voce di menu e icona (prefisso predefinito /usr/local)
+sudo cmake --install build --component ondaria
 ```
 
 **Windows (Visual Studio 2022):**
@@ -95,7 +101,7 @@ cmake --build build
 ```powershell
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64
 cmake --build build --config Release
-.\build\Sonora_artefacts\Release\Sonora.exe
+.\build\Sonora_artefacts\Release\Ondaria.exe
 ```
 
 **Test:** `ctest --test-dir build -C Release --output-on-failure`. I test caricano due plugin CLAP di prova (uno valido e uno che va in crash) e verificano parametri, audio, note, stato, latenza e scansione isolata.
@@ -106,11 +112,11 @@ cmake --build build --config Release
 src/app/       interfaccia: tema, barra superiore, session view, browser, catena di device, palette comandi
 src/session/   logica della session view (clip, scene, lancio quantizzato), separata dall'interfaccia
 src/host/      host dei plugin: formato CLAP, registro dei formati, scansione isolata
-src/scanner/   sonora-plugin-scanner, il processo che scansiona un plugin alla volta
+src/scanner/   ondaria-plugin-scanner, il processo che scansiona un plugin alla volta
 tests/         test automatici e plugin CLAP di prova
 external/      sottomoduli: Tracktion Engine (con JUCE) e SDK CLAP
 docs/          architettura e roadmap
-resources/     font dell'interfaccia (Inter e JetBrains Mono, SIL Open Font License)
+resources/     font dell'interfaccia (Inter e JetBrains Mono, SIL Open Font License), icona dell'app, file .desktop per Linux
 ```
 
 ## Licenza

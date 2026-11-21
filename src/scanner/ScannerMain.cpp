@@ -54,7 +54,7 @@ int main (int argc, char* argv[])
 
     if (formatName.isEmpty() || fileOrIdentifier.isEmpty() || output == juce::File())
     {
-        std::cerr << "Uso: sonora-plugin-scanner --format=<formato> --file=<plugin> --output=<file.xml>" << std::endl;
+        std::cerr << "Uso: ondaria-plugin-scanner --format=<formato> --file=<plugin> --output=<file.xml>" << std::endl;
         return sonora::scan::exitBadArguments;
     }
 
