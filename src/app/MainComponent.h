@@ -15,6 +15,7 @@
 #include "PluginBrowserComponent.h"
 #include "SessionView.h"
 #include "TopBar.h"
+#include "session/Recording.h"
 
 namespace sonora
 {
@@ -54,7 +55,6 @@ private:
     static juce::File getProjectsFolder();
 
     void insertDevice (const juce::PluginDescription&);
-    void routeKeyboardTo (tracktion::AudioTrack*);
     void showAudioSettings();
     void showMainMenu();
     void showCommandPalette();
@@ -65,10 +65,13 @@ private:
     std::function<void (tracktion::Clip*)> showClip;
     int getDetailHeight() const;
     void togglePlay();
+    void stopTransport (bool returnToStartIfStopped);
+    void toggleRecord();
     void status (const juce::String&);
 
     tracktion::Engine& engine;
     std::unique_ptr<tracktion::Edit> edit;
+    std::unique_ptr<recording::Recorder> recorder;   // dopo edit: va distrutto prima
     std::shared_ptr<tracktion::MidiInputDevice> keyboardDevice;
     std::unique_ptr<juce::FileChooser> chooser;
 

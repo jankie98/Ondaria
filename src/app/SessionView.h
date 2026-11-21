@@ -8,6 +8,8 @@
 
 #include <tracktion_engine/tracktion_engine.h>
 
+namespace sonora::recording { class Recorder; }
+
 namespace sonora
 {
 
@@ -27,6 +29,9 @@ public:
     ~SessionView() override;
 
     void setEdit (tracktion::Edit*);
+
+    /** Registrazione negli slot e armamento delle tracce (puo' essere nullptr). */
+    void setRecorder (recording::Recorder*);
 
     tracktion::AudioTrack* getSelectedTrack() const;
     void selectTrack (tracktion::AudioTrack*);
@@ -57,6 +62,7 @@ private:
     void status (const juce::String&);
 
     tracktion::Edit* edit = nullptr;
+    recording::Recorder* recorder = nullptr;
     tracktion::EditItemID selectedTrackID;
     int selectedScene = 0;
     juce::String gridSignature;

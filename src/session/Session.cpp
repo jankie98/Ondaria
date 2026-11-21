@@ -361,6 +361,70 @@ std::optional<float> getPlayProgress (te::Clip& clip)
     return handle.getProgress (played->getEnd());
 }
 
+std::optional<LaunchPoint> nextLaunchPoint (te::Edit& e)
+{
+    auto& transport = e.getTransport();
+
+    if (! transport.isPlaying())
+        return std::nullopt;
+
+    auto context = transport.getCurrentPlaybackContext();
+
+    if (context == nullptr)
+        return std::nullopt;
+
+    auto syncPoint = context->getSyncPoint();
+
+    if (! syncPoint)
+        return std::nullopt;
+
+    auto& ts = e.tempoSequence;
+    const auto loop = transport.looping.get() ? std::optional (ts.toBeats (transport.getLoopRange()))
+                                              : std::nullopt;
+    const auto offset = offsetToNextLaunch (e.getLaunchQuantisation(), syncPoint->beat, loop);
+    const auto timeOffset = ts.toTime (syncPoint->beat + offset) - ts.toTime (syncPoint->beat);
+
+    return LaunchPoint { te::MonotonicBeat { syncPoint->monotonicBeat.v + offset },
+                         syncPoint->unloopedTime + te::TimeDuration::fromSeconds (std::max (0.0, timeOffset.inSeconds())) };
+}
+
+void startTransportFromBar (te::Edit& e)
+{
+    startTransportIfStopped (e);
+    startTransport (e);
+}
+
+void setUpFilePaths (te::Edit& e)
+{
+    // Il motore scrive i percorsi con File::getRelativePathFrom (fileDelProgetto),
+    // cioe' trattando il file come una cartella ("../campione.wav"); il risolutore
+    // predefinito invece li cerca accanto al file e sale di una cartella di troppo.
+    e.filePathResolver = [&e] (const juce::String& path) -> juce::File
+    {
+        if (path.isEmpty())
+            return {};
+
+        if (juce::File::isAbsolutePath (path))
+            return path;
+
+        if (e.editFileRetriever)
+        {
+            if (auto editFile = e.editFileRetriever(); editFile != juce::File())
+            {
+                if (auto f = editFile.getChildFile (path); f.existsAsFile())
+                    return f;
+
+                if (auto f = editFile.getSiblingFile (path); f.existsAsFile())
+                    return f;
+
+                return editFile.getChildFile (path);
+            }
+        }
+
+        return juce::File::getCurrentWorkingDirectory().getChildFile (path);
+    };
+}
+
 juce::StringArray getQuantisationNames()
 {
     return { "Nessuna", "8 battute", "4 battute", "2 battute", "1 battuta",

@@ -5,6 +5,7 @@
 */
 
 #include "ArrangementView.h"
+#include "RecordingUI.h"
 #include "session/Arrangement.h"
 
 namespace te = tracktion;
@@ -261,6 +262,17 @@ void ArrangementView::paint (juce::Graphics& g)
         g.setFont (fonts::ui (12.5f, fonts::Weight::medium));
         g.drawText (t->getName(), text, juce::Justification::centredLeft, true);
 
+        if (recorder != nullptr)
+        {
+            const bool armed = recorder->isArmed (*t);
+            const bool hover = isMouseOver() && armArea (i).contains (getMouseXYRelative());
+            recordingui::drawArmButton (g, armArea (i).toFloat(), armed, armed && ! recording::isExplicitlyArmed (*t), hover);
+
+            g.setColour (colours::textDim);
+            g.setFont (fonts::ui (10.5f));
+            g.drawText (recording::getInputName (*t), header.reduced (10, 7), juce::Justification::bottomLeft, true);
+        }
+
         if (t->playSlotClips.get())
         {
             g.setColour (colours::warning);
@@ -280,6 +292,29 @@ void ArrangementView::paint (juce::Graphics& g)
 
             if (r.getRight() >= lanes.getX() && r.getX() <= lanes.getRight())
                 drawClip (g, *c, r);
+        }
+
+        // Registrazione in corso: dall'inizio alla testina
+        if (recorder != nullptr && transport.isPlaying())
+        {
+            if (auto punchIn = recorder->getPunchInTime (*t))
+            {
+                const int x1 = xForBeat (ts.toBeats (*punchIn).inBeats());
+                const int x2 = xForBeat (ts.toBeats (transport.getPosition()).inBeats());
+
+                if (x2 > x1)
+                {
+                    auto rec = juce::Rectangle<int> (x1, y, x2 - x1, laneHeight).toFloat();
+                    g.setColour (colours::record.withAlpha (0.25f));
+                    g.fillRoundedRectangle (rec, metrics::radius);
+                    g.setColour (colours::record);
+                    g.fillRoundedRectangle (rec.removeFromTop (16.0f), metrics::radius);
+                    g.setColour (colours::background);
+                    g.setFont (fonts::ui (10.5f, fonts::Weight::medium));
+                    g.drawText ("Registrazione", rec.withHeight (16.0f).reduced (6.0f, 0.0f).withY (rec.getY() - 16.0f),
+                                juce::Justification::centredLeft, true);
+                }
+            }
         }
 
         g.restoreState();
@@ -433,6 +468,29 @@ void ArrangementView::selectClip (te::Clip* c)
     repaint();
 }
 
+juce::Rectangle<int> ArrangementView::armArea (int laneIndex) const
+{
+    return { padding + headerWidth - 30, laneTop (laneIndex) + 8, 22, 22 };
+}
+
+void ArrangementView::showHeaderMenu (te::AudioTrack& track)
+{
+    if (recorder == nullptr)
+        return;
+
+    juce::PopupMenu m;
+    te::AudioTrack::Ptr t (&track);
+    juce::WeakReference<recording::Recorder> rec (recorder);
+
+    m.addSubMenu ("Ingresso", recordingui::inputMenu (*recorder, track));
+    m.addItem ("Arma per la registrazione", true, recording::isExplicitlyArmed (track), [t, rec]
+    {
+        if (rec != nullptr)
+            rec->setArmed (*t, ! recording::isExplicitlyArmed (*t));
+    });
+    m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this));
+}
+
 void ArrangementView::mouseDown (const juce::MouseEvent& e)
 {
     if (edit == nullptr)
@@ -460,11 +518,26 @@ void ArrangementView::mouseDown (const juce::MouseEvent& e)
         return;
     }
 
-    // Intestazioni: selezionano la traccia
+    // Intestazioni: selezionano la traccia, il cerchio la arma
     if (pos.x < lanesArea().getX())
     {
-        if (auto t = trackAtY (pos.y); t != nullptr && onTrackSelected)
-            onTrackSelected (t);
+        if (auto t = trackAtY (pos.y))
+        {
+            const int index = te::getAudioTracks (*edit).indexOf (t);
+
+            if (recorder != nullptr && armArea (index).expanded (4).contains (pos) && ! e.mods.isPopupMenu())
+            {
+                recorder->setArmed (*t, ! recording::isExplicitlyArmed (*t));
+            }
+            else
+            {
+                if (onTrackSelected)
+                    onTrackSelected (t);
+
+                if (e.mods.isPopupMenu())
+                    showHeaderMenu (*t);
+            }
+        }
 
         repaint();
         return;
@@ -565,6 +638,9 @@ void ArrangementView::mouseMove (const juce::MouseEvent& e)
                                                               : juce::MouseCursor::DraggingHandCursor;
 
     setMouseCursor (newCursor);
+
+    if (e.x < lanesArea().getX())
+        repaint (0, 0, lanesArea().getX(), getHeight());
 }
 
 void ArrangementView::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w)

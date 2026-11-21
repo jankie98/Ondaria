@@ -193,6 +193,12 @@ void IconButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
         g.fillRoundedRectangle (r, metrics::radius);
     }
 
+    if (getToggleState())
+    {
+        g.setColour (activeColour.withAlpha (0.16f));
+        g.fillRoundedRectangle (r, metrics::radius);
+    }
+
     const auto size = juce::jmin (r.getWidth(), r.getHeight()) * 0.42f;
     auto colour = getToggleState() ? activeColour : (highlighted ? colours::text : iconColour);
 
