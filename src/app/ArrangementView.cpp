@@ -8,6 +8,7 @@
 #include "Animation.h"
 #include "RecordingUI.h"
 #include "session/Arrangement.h"
+#include "session/Automation.h"
 
 namespace te = tracktion;
 using namespace tracktion::literals;
@@ -23,6 +24,11 @@ namespace
     constexpr int laneGap = 4;
     constexpr int resizeEdge = 6;
     constexpr int padding = 14;
+    constexpr int automationHeight = 52;
+    constexpr int pointRadius = 4;
+    constexpr int valueInset = 6;
+
+    namespace au = sonora::automation;
 
     juce::Colour colourOf (te::Clip& c)
     {
@@ -124,7 +130,26 @@ juce::Rectangle<int> ArrangementView::lanesArea() const
 
 int ArrangementView::xForBeat (double beat) const      { return lanesArea().getX() + (int) std::round ((beat - viewStart) * pixelsPerBeat); }
 double ArrangementView::beatForX (int x) const         { return viewStart + (x - lanesArea().getX()) / pixelsPerBeat; }
-int ArrangementView::laneTop (int index) const         { return lanesArea().getY() - scrollY + index * (laneHeight + laneGap); }
+
+int ArrangementView::trackBlockHeight (const te::AudioTrack& t) const
+{
+    return laneHeight + laneGap + au::getShownLanes (t).size() * (automationHeight + laneGap);
+}
+
+int ArrangementView::laneTop (int index) const
+{
+    int y = lanesArea().getY() - scrollY;
+
+    if (edit != nullptr)
+    {
+        auto tracks = te::getAudioTracks (*edit);
+
+        for (int i = 0; i < index && i < tracks.size(); ++i)
+            y += trackBlockHeight (*tracks[i]);
+    }
+
+    return y;
+}
 
 te::AudioTrack* ArrangementView::trackAtY (int y) const
 {
@@ -168,6 +193,346 @@ te::Clip* ArrangementView::clipAt (juce::Point<int> p) const
     }
 
     return nullptr;
+}
+
+//==============================================================================
+std::vector<ArrangementView::AutomationLane> ArrangementView::automationLanes (te::AudioTrack& t, int trackIndex) const
+{
+    std::vector<AutomationLane> result;
+    int y = laneTop (trackIndex) + laneHeight + laneGap;
+    const auto lanes = lanesArea();
+
+    for (auto& key : au::getShownLanes (t))
+    {
+        AutomationLane l;
+        l.track = &t;
+        l.key = key;
+        l.param = au::findParameter (t, key);
+        l.header = { padding, y, headerWidth, automationHeight };
+        l.lane = { lanes.getX(), y, lanes.getWidth(), automationHeight };
+        result.push_back (std::move (l));
+        y += automationHeight + laneGap;
+    }
+
+    return result;
+}
+
+std::optional<ArrangementView::AutomationLane> ArrangementView::automationLaneAt (juce::Point<int> p) const
+{
+    if (edit == nullptr || p.y < lanesArea().getY())
+        return std::nullopt;
+
+    auto tracks = te::getAudioTracks (*edit);
+    int top = lanesArea().getY() - scrollY;
+
+    for (int i = 0; i < tracks.size(); ++i)
+    {
+        const int height = trackBlockHeight (*tracks[i]);
+
+        if (p.y >= top + laneHeight && p.y < top + height)
+            for (auto& l : automationLanes (*tracks[i], i))
+                if (p.y >= l.lane.getY() && p.y < l.lane.getBottom())
+                    return l;
+
+        top += height;
+    }
+
+    return std::nullopt;
+}
+
+int ArrangementView::xForTime (te::TimePosition t) const
+{
+    return xForBeat (edit->tempoSequence.toBeats (t).inBeats());
+}
+
+te::TimePosition ArrangementView::timeForX (int x, bool snapToGrid) const
+{
+    const double beat = juce::jmax (0.0, beatForX (x));
+    return edit->tempoSequence.toTime (snapToGrid ? snap (beat) : te::BeatPosition::fromBeats (beat));
+}
+
+float ArrangementView::yForValue (juce::Rectangle<int> lane, float normalised) const
+{
+    const float h = (float) (lane.getHeight() - 2 * valueInset);
+    return (float) (lane.getBottom() - valueInset) - normalised * h;
+}
+
+float ArrangementView::valueForY (juce::Rectangle<int> lane, int y) const
+{
+    const float h = (float) (lane.getHeight() - 2 * valueInset);
+    return juce::jlimit (0.0f, 1.0f, ((float) (lane.getBottom() - valueInset) - (float) y) / h);
+}
+
+int ArrangementView::automationPointAt (const AutomationLane& l, juce::Point<int> p) const
+{
+    if (l.param == nullptr)
+        return -1;
+
+    auto& curve = l.param->getCurve();
+    int best = -1;
+    float bestDistance = (float) pointRadius + 4.0f;
+
+    for (int i = 0; i < curve.getNumPoints(); ++i)
+    {
+        const juce::Point<float> pt ((float) xForTime (curve.getPointTime (i)),
+                                     yForValue (l.lane, au::toNormalised (*l.param, curve.getPointValue (i))));
+        const float d = pt.getDistanceFrom (p.toFloat());
+
+        if (d < bestDistance)
+        {
+            best = i;
+            bestDistance = d;
+        }
+    }
+
+    return best;
+}
+
+juce::Rectangle<int> ArrangementView::hideButtonArea (const AutomationLane& l) const
+{
+    return { l.header.getRight() - 24, l.header.getY() + 6, 16, 16 };
+}
+
+juce::Rectangle<int> ArrangementView::automationButtonArea (int laneIndex) const
+{
+    return { padding + headerWidth - 56, laneTop (laneIndex) + 8, 22, 22 };
+}
+
+void ArrangementView::drawAutomationLane (juce::Graphics& g, const AutomationLane& l, juce::Colour colour, bool selected)
+{
+    const auto mouse = getMouseXYRelative();
+    const bool hover = isMouseOver() && l.lane.contains (mouse);
+
+    // Intestazione: nome del parametro, valore attuale, chiudi
+    g.setColour (colours::panel.withAlpha (selected ? 0.95f : 0.7f));
+    g.fillRoundedRectangle (l.header.toFloat(), metrics::radius);
+    g.setColour (colour.withAlpha (0.55f));
+    g.fillRect (l.header.getX() + 1, l.header.getY() + 6, 2, l.header.getHeight() - 12);
+
+    auto text = l.header.reduced (12, 6).withTrimmedRight (22);
+    g.setColour (l.param != nullptr ? colours::textMid : colours::textDim);
+    g.setFont (fonts::ui (11.0f, fonts::Weight::medium));
+    g.drawText (l.param != nullptr ? au::displayName (*l.param) : juce::String ("Parametro non disponibile"),
+                text.removeFromTop (16), juce::Justification::centredLeft, true);
+
+    if (l.param != nullptr)
+    {
+        g.setColour (colours::textDim);
+        g.setFont (fonts::mono (10.0f));
+        g.drawText (au::valueText (*l.param, l.param->getCurrentValue()), text.removeFromBottom (14),
+                    juce::Justification::centredLeft, true);
+    }
+
+    const auto close = hideButtonArea (l).toFloat();
+    const bool closeHover = isMouseOver() && close.expanded (3.0f).contains (mouse.toFloat());
+    g.setColour (closeHover ? colours::text : colours::textDim);
+    g.drawLine (close.getX() + 4.0f, close.getY() + 4.0f, close.getRight() - 4.0f, close.getBottom() - 4.0f, 1.3f);
+    g.drawLine (close.getRight() - 4.0f, close.getY() + 4.0f, close.getX() + 4.0f, close.getBottom() - 4.0f, 1.3f);
+
+    // Corsia
+    g.setColour (colours::emptySlot.withAlpha (0.35f));
+    g.fillRoundedRectangle (l.lane.toFloat(), metrics::radius);
+
+    if (l.param == nullptr)
+        return;
+
+    juce::Graphics::ScopedSaveState s (g);
+    g.reduceClipRegion (l.lane.getIntersection (lanesArea()));
+
+    // Riferimenti a meta' e agli estremi
+    g.setColour (colours::divider.withAlpha (0.6f));
+    g.fillRect (l.lane.getX(), juce::roundToInt (yForValue (l.lane, 0.5f)), l.lane.getWidth(), 1);
+
+    auto& curve = l.param->getCurve();
+    const int numPoints = curve.getNumPoints();
+
+    if (numPoints == 0)
+    {
+        const float y = yForValue (l.lane, au::normalisedValueAt (*l.param, {}));
+        g.setColour (colour.withAlpha (0.35f));
+        g.drawHorizontalLine (juce::roundToInt (y), (float) l.lane.getX(), (float) l.lane.getRight());
+        g.setColour (colours::textDim.withAlpha (hover ? 0.9f : 0.5f));
+        g.setFont (fonts::ui (10.5f));
+        g.drawText ("Clic per aggiungere un punto", l.lane.reduced (10, 4), juce::Justification::topLeft);
+        return;
+    }
+
+    // La curva, campionata ogni due pixel (segue anche i tratti curvati)
+    juce::Path line, fill;
+    const int x1 = l.lane.getX(), x2 = l.lane.getRight();
+
+    for (int x = x1; x <= x2 + 1; x += 2)
+    {
+        const auto t = timeForX (x, false);
+        const float y = yForValue (l.lane, au::normalisedValueAt (*l.param, t));
+
+        if (x == x1)
+        {
+            line.startNewSubPath ((float) x, y);
+            fill.startNewSubPath ((float) x, (float) l.lane.getBottom());
+        }
+        else
+        {
+            line.lineTo ((float) x, y);
+        }
+
+        fill.lineTo ((float) x, y);
+    }
+
+    fill.lineTo ((float) x2 + 1.0f, (float) l.lane.getBottom());
+    fill.closeSubPath();
+
+    g.setColour (colour.withAlpha (selected ? 0.16f : 0.1f));
+    g.fillPath (fill);
+    g.setColour (colour.brighter (0.2f));
+    g.strokePath (line, juce::PathStrokeType (1.6f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+
+    const int hovered = hover ? automationPointAt (l, mouse) : -1;
+    const bool dragging = drag == Drag::point && dragParam == l.param;
+
+    for (int i = 0; i < numPoints; ++i)
+    {
+        const float x = (float) xForTime (curve.getPointTime (i));
+
+        if (x < (float) x1 - 10.0f || x > (float) x2 + 10.0f)
+            continue;
+
+        const float y = yForValue (l.lane, au::toNormalised (*l.param, curve.getPointValue (i)));
+        const bool active = i == hovered || (dragging && i == dragPoint);
+        const float r = active ? (float) pointRadius + 1.5f : (float) pointRadius;
+        g.setColour (colours::background);
+        g.fillEllipse (x - r - 1.5f, y - r - 1.5f, (r + 1.5f) * 2.0f, (r + 1.5f) * 2.0f);
+        g.setColour (active ? colours::text : colour.brighter (0.4f));
+        g.fillEllipse (x - r, y - r, r * 2.0f, r * 2.0f);
+
+        // Valore accanto al punto che si sta trascinando o indicando
+        if (active)
+        {
+            const auto label = au::valueText (*l.param, curve.getPointValue (i));
+            g.setFont (fonts::mono (10.0f));
+            const int w = juce::GlyphArrangement::getStringWidthInt (g.getCurrentFont(), label) + 10;
+            auto box = juce::Rectangle<float> (x + 8.0f, y - 9.0f, (float) w, 16.0f);
+
+            if (box.getRight() > (float) x2)
+                box.setX (x - 8.0f - (float) w);
+
+            box.setY (juce::jlimit ((float) l.lane.getY() + 1.0f, (float) l.lane.getBottom() - 17.0f, box.getY()));
+            g.setColour (colours::panelLight);
+            g.fillRoundedRectangle (box, 4.0f);
+            g.setColour (colours::text);
+            g.drawText (label, box, juce::Justification::centred);
+        }
+    }
+}
+
+juce::PopupMenu ArrangementView::automationMenu (te::AudioTrack& track)
+{
+    juce::PopupMenu m;
+    te::AudioTrack::Ptr t (&track);
+    juce::Component::SafePointer<ArrangementView> safe (this);
+    auto refresh = [safe] { if (safe != nullptr) safe->repaint(); };
+
+    auto addParam = [&] (juce::PopupMenu& menu, const au::ParameterInfo& info, const juce::String& label)
+    {
+        const bool shown = au::isLaneShown (track, info.key);
+        // Un pallino accanto ai parametri che hanno gia' dei punti
+        const auto text = au::hasAutomation (*info.param) ? label + juce::String (juce::CharPointer_UTF8 ("  \xe2\x80\xa2")) : label;
+        menu.addItem (text, true, shown, [t, key = info.key, shown, refresh]
+        {
+            au::setLaneShown (*t, key, ! shown);
+            refresh();
+        });
+    };
+
+    // Il mixer in cima, poi un sottomenu per ogni device
+    std::vector<std::pair<juce::String, juce::PopupMenu>> devices;
+
+    for (auto& info : au::getParameters (track))
+    {
+        auto plugin = info.param->getPlugin();
+
+        if (dynamic_cast<te::VolumeAndPanPlugin*> (plugin) != nullptr)
+        {
+            addParam (m, info, info.param->getParameterName());
+            continue;
+        }
+
+        const auto owner = plugin != nullptr ? plugin->getName() : juce::String ("Altro");
+
+        if (devices.empty() || devices.back().first != owner)
+            devices.push_back ({ owner, {} });
+
+        addParam (devices.back().second, info, info.param->getParameterName());
+    }
+
+    if (! devices.empty())
+    {
+        m.addSeparator();
+
+        for (auto& [name, sub] : devices)
+            m.addSubMenu (name, sub);
+    }
+
+    m.addSeparator();
+    m.addItem ("Mostra quelli con automazione", au::hasAutomation (track), false, [t, refresh]
+    {
+        au::showAutomatedLanes (*t);
+        refresh();
+    });
+    m.addItem ("Nascondi tutte le corsie", ! au::getShownLanes (track).isEmpty(), false, [t, refresh]
+    {
+        au::hideAllLanes (*t);
+        refresh();
+    });
+    return m;
+}
+
+void ArrangementView::showLaneMenu (const AutomationLane& l, int pointIndex)
+{
+    juce::PopupMenu m;
+    te::AudioTrack::Ptr t (l.track);
+    auto param = l.param;
+    const auto key = l.key;
+    juce::Component::SafePointer<ArrangementView> safe (this);
+    auto refresh = [safe] { if (safe != nullptr) safe->repaint(); };
+
+    if (param != nullptr)
+    {
+        if (pointIndex >= 0)
+        {
+            m.addItem ("Elimina il punto", [param, pointIndex, refresh]
+            {
+                param->getEdit().getUndoManager().beginNewTransaction ("Elimina punto");
+                au::removePoint (*param, pointIndex);
+                refresh();
+            });
+
+            if (pointIndex < param->getCurve().getNumPoints() - 1)
+                m.addItem ("Raddrizza il tratto", std::abs (param->getCurve().getPointCurve (pointIndex)) > 1.0e-4f, false,
+                           [param, pointIndex, refresh]
+                {
+                    param->getEdit().getUndoManager().beginNewTransaction ("Raddrizza tratto");
+                    au::setCurve (*param, pointIndex, 0.0f);
+                    refresh();
+                });
+
+            m.addSeparator();
+        }
+
+        m.addItem ("Cancella tutta l'automazione", au::hasAutomation (*param), false, [param, refresh]
+        {
+            param->getEdit().getUndoManager().beginNewTransaction ("Cancella automazione");
+            au::clear (*param);
+            refresh();
+        });
+    }
+
+    m.addItem ("Nascondi la corsia", [t, key, refresh]
+    {
+        au::setLaneShown (*t, key, false);
+        refresh();
+    });
+    m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this).withMousePosition());
 }
 
 te::BeatPosition ArrangementView::snap (double beat) const
@@ -249,7 +614,7 @@ void ArrangementView::paint (juce::Graphics& g)
         auto t = tracks[i];
         const int y = laneTop (i);
 
-        if (y + laneHeight < lanes.getY() || y > lanes.getBottom())
+        if (y + trackBlockHeight (*t) < lanes.getY() || y > lanes.getBottom())
             continue;
 
         g.saveState();
@@ -277,7 +642,7 @@ void ArrangementView::paint (juce::Graphics& g)
             g.drawRoundedRectangle (header.toFloat().reduced (0.5f), metrics::radius, 1.0f);
         }
 
-        auto text = header.reduced (12, 0).toFloat();
+        auto text = header.reduced (12, 0).withTrimmedRight (60).toFloat();
         g.setColour (colours::text);
         g.setFont (fonts::ui (12.5f, fonts::Weight::medium));
         g.drawText (t->getName(), text, juce::Justification::centredLeft, true);
@@ -291,6 +656,22 @@ void ArrangementView::paint (juce::Graphics& g)
             g.setColour (colours::textDim);
             g.setFont (fonts::ui (10.5f));
             g.drawText (recording::getInputName (*t), header.reduced (10, 7), juce::Justification::bottomLeft, true);
+        }
+
+        // Pulsante delle corsie di automazione: acceso se la traccia ne mostra o ne ha
+        {
+            const auto area = automationButtonArea (i).toFloat();
+            const bool hover = isMouseOver() && area.contains (getMouseXYRelative().toFloat());
+            const bool lit = ! au::getShownLanes (*t).isEmpty();
+
+            if (hover || lit)
+            {
+                g.setColour (lit ? colour.withAlpha (0.25f) : colours::hover);
+                g.fillRoundedRectangle (area, 5.0f);
+            }
+
+            icons::draw (g, icons::automation(), area.reduced (4.0f),
+                         lit ? colour.brighter (0.4f) : (au::hasAutomation (*t) ? colours::textMid : colours::textDim));
         }
 
         if (t->playSlotClips.get())
@@ -340,6 +721,17 @@ void ArrangementView::paint (juce::Graphics& g)
         }
 
         g.restoreState();
+
+        // Corsie di automazione sotto la traccia
+        for (auto& l : automationLanes (*t, i))
+        {
+            if (l.lane.getBottom() < lanes.getY() || l.lane.getY() > lanes.getBottom())
+                continue;
+
+            juce::Graphics::ScopedSaveState s (g);
+            g.reduceClipRegion (getLocalBounds().withTop (lanes.getY()).withBottom (lanes.getBottom()));
+            drawAutomationLane (g, l, colour, selected);
+        }
     }
 
     if (tracks.isEmpty())
@@ -452,6 +844,10 @@ void ArrangementView::timerCallback()
     // Segue la testina durante la riproduzione.
     auto& transport = edit->getTransport();
 
+    // Mentre si scrivono automazioni, si vede subito la corsia del parametro che si muove
+    if (transport.isPlaying())
+        au::showLanesBeingWritten (*edit);
+
     if (transport.isPlaying() && drag == Drag::none)
     {
         const auto beat = edit->tempoSequence.toBeats (transport.getPosition()).inBeats();
@@ -486,19 +882,22 @@ juce::Rectangle<int> ArrangementView::armArea (int laneIndex) const
 
 void ArrangementView::showHeaderMenu (te::AudioTrack& track)
 {
-    if (recorder == nullptr)
-        return;
-
     juce::PopupMenu m;
     te::AudioTrack::Ptr t (&track);
-    juce::WeakReference<recording::Recorder> rec (recorder);
 
-    m.addSubMenu ("Ingresso", recordingui::inputMenu (*recorder, track));
-    m.addItem ("Arma per la registrazione", true, recording::isExplicitlyArmed (track), [t, rec]
+    if (recorder != nullptr)
     {
-        if (rec != nullptr)
-            rec->setArmed (*t, ! recording::isExplicitlyArmed (*t));
-    });
+        juce::WeakReference<recording::Recorder> rec (recorder);
+        m.addSubMenu ("Ingresso", recordingui::inputMenu (*recorder, track));
+        m.addItem ("Arma per la registrazione", true, recording::isExplicitlyArmed (track), [t, rec]
+        {
+            if (rec != nullptr)
+                rec->setArmed (*t, ! recording::isExplicitlyArmed (*t));
+        });
+        m.addSeparator();
+    }
+
+    m.addSubMenu ("Automazione", automationMenu (track));
     m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this));
 }
 
@@ -529,6 +928,71 @@ void ArrangementView::mouseDown (const juce::MouseEvent& e)
         return;
     }
 
+    // Corsie di automazione
+    if (auto l = automationLaneAt (pos))
+    {
+        if (onTrackSelected)
+            onTrackSelected (l->track);
+
+        if (pos.x < lanesArea().getX())
+        {
+            if (e.mods.isPopupMenu())
+                showLaneMenu (*l, -1);
+            else if (hideButtonArea (*l).expanded (3).contains (pos))
+                au::setLaneShown (*l->track, l->key, false);
+
+            repaint();
+            return;
+        }
+
+        if (l->param == nullptr)
+            return;
+
+        const int index = automationPointAt (*l, pos);
+
+        if (e.mods.isPopupMenu())
+        {
+            showLaneMenu (*l, index);
+            return;
+        }
+
+        auto& curve = l->param->getCurve();
+        edit->getUndoManager().beginNewTransaction ("Automazione");
+        dragParam = l->param;
+        dragLane = l->lane;
+        dragStartY = pos.y;
+
+        if (index >= 0)
+        {
+            dragPoint = index;
+            drag = Drag::point;
+        }
+        else if (e.mods.isAltDown())
+        {
+            // Alt: curva il tratto sotto il mouse
+            const auto t = timeForX (pos.x, false);
+            dragPoint = -1;
+
+            for (int i = 0; i < curve.getNumPoints() - 1; ++i)
+                if (curve.getPointTime (i) <= t && curve.getPointTime (i + 1) > t)
+                    dragPoint = i;
+
+            if (dragPoint >= 0)
+            {
+                dragCurveStart = curve.getPointCurve (dragPoint);
+                drag = Drag::curve;
+            }
+        }
+        else
+        {
+            dragPoint = au::addPoint (*l->param, timeForX (pos.x, ! e.mods.isCommandDown()), valueForY (l->lane, pos.y));
+            drag = Drag::point;
+        }
+
+        repaint();
+        return;
+    }
+
     // Intestazioni: selezionano la traccia, il cerchio la arma
     if (pos.x < lanesArea().getX())
     {
@@ -539,6 +1003,14 @@ void ArrangementView::mouseDown (const juce::MouseEvent& e)
             if (recorder != nullptr && armArea (index).expanded (4).contains (pos) && ! e.mods.isPopupMenu())
             {
                 recorder->setArmed (*t, ! recording::isExplicitlyArmed (*t));
+            }
+            else if (automationButtonArea (index).expanded (2).contains (pos) && ! e.mods.isPopupMenu())
+            {
+                if (onTrackSelected)
+                    onTrackSelected (t);
+
+                automationMenu (*t).showMenuAsync (juce::PopupMenu::Options().withTargetScreenArea (
+                    localAreaToGlobal (automationButtonArea (index))));
             }
             else
             {
@@ -600,6 +1072,25 @@ void ArrangementView::mouseDrag (const juce::MouseEvent& e)
         return;
     }
 
+    if (drag == Drag::point && dragParam != nullptr)
+    {
+        dragPoint = au::movePoint (*dragParam, dragPoint, timeForX (e.x, ! e.mods.isCommandDown()), valueForY (dragLane, e.y));
+        repaint();
+        return;
+    }
+
+    if (drag == Drag::curve && dragParam != nullptr)
+    {
+        // Trascinando in su il tratto si gonfia verso l'alto. Nel motore una curvatura
+        // positiva abbassa i tratti in salita e alza quelli in discesa.
+        auto& curve = dragParam->getCurve();
+        const bool rising = curve.getPointValue (dragPoint + 1) >= curve.getPointValue (dragPoint);
+        const float delta = (float) (e.y - dragStartY) / 80.0f;
+        au::setCurve (*dragParam, dragPoint, dragCurveStart + (rising ? delta : -delta));
+        repaint();
+        return;
+    }
+
     if (selectedClip == nullptr)
         return;
 
@@ -621,10 +1112,25 @@ void ArrangementView::mouseDrag (const juce::MouseEvent& e)
 void ArrangementView::mouseUp (const juce::MouseEvent&)
 {
     drag = Drag::none;
+    dragParam = nullptr;
+    repaint();
 }
 
 void ArrangementView::mouseDoubleClick (const juce::MouseEvent& e)
 {
+    if (auto l = automationLaneAt (e.getPosition()))
+    {
+        // Doppio clic su un punto: lo toglie
+        if (const int index = automationPointAt (*l, e.getPosition()); index >= 0)
+        {
+            edit->getUndoManager().beginNewTransaction ("Elimina punto");
+            au::removePoint (*l->param, index);
+            repaint();
+        }
+
+        return;
+    }
+
     if (edit == nullptr || ! lanesArea().contains (e.getPosition()) || clipAt (e.getPosition()) != nullptr)
         return;
 
@@ -648,6 +1154,13 @@ void ArrangementView::mouseMove (const juce::MouseEvent& e)
         newCursor = clipRect (*c).getRight() - e.x <= resizeEdge ? juce::MouseCursor::LeftRightResizeCursor
                                                               : juce::MouseCursor::DraggingHandCursor;
 
+    if (auto l = automationLaneAt (e.getPosition()); l && e.x >= lanesArea().getX())
+    {
+        newCursor = automationPointAt (*l, e.getPosition()) >= 0 ? juce::MouseCursor::DraggingHandCursor
+                                                                 : juce::MouseCursor::CrosshairCursor;
+        repaint (l->lane);
+    }
+
     setMouseCursor (newCursor);
 
     if (e.x < lanesArea().getX())
@@ -669,7 +1182,11 @@ void ArrangementView::mouseWheelMove (const juce::MouseEvent& e, const juce::Mou
     }
     else if (edit != nullptr)
     {
-        const int total = te::getAudioTracks (*edit).size() * (laneHeight + laneGap);
+        int total = 0;
+
+        for (auto t : te::getAudioTracks (*edit))
+            total += trackBlockHeight (*t);
+
         scrollY = juce::jlimit (0, juce::jmax (0, total - lanesArea().getHeight()), scrollY - (int) (w.deltaY * 120.0f));
     }
 

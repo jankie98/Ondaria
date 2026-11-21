@@ -185,6 +185,7 @@ void MainComponent::setEdit (std::unique_ptr<te::Edit> newEdit)
         edit->ensureNumberOfAudioTracks (4);
 
     session::ensureGrid (*edit);
+    automation::prepareEdit (*edit);
     edit->getUndoManager().clearUndoHistory();
     edit->getTransport().ensureContextAllocated();
 
@@ -605,6 +606,28 @@ void MainComponent::showCommandPalette()
     add ("Riproduci / ferma", "Spazio", [this] { togglePlay(); });
     add ("Registra nell'arrangement", "F9", [this] { toggleRecord(); });
     add ("Cattura quello che hai appena suonato", "Ctrl+Shift+C", [this] { captureNow(); });
+    add ("Scrivi automazioni (attiva o disattiva)", {}, [this]
+    {
+        if (edit != nullptr)
+        {
+            automation::setWriting (*edit, ! automation::isWriting (*edit));
+            status (automation::isWriting (*edit) ? "Scrittura automazioni accesa: muovi le manopole mentre il brano suona"
+                                                  : "Scrittura automazioni spenta");
+        }
+    });
+    add ("Mostra le corsie di automazione della traccia", {}, [this]
+    {
+        if (auto t = sessionView.getSelectedTrack())
+        {
+            setView (TopBar::View::arrangement);
+
+            if (automation::showAutomatedLanes (*t) == 0 && automation::getShownLanes (*t).isEmpty())
+                if (auto vol = t->getVolumePlugin())
+                    automation::setLaneShown (*t, automation::keyFor (*vol->volParam), true);
+
+            arrangement.repaint();
+        }
+    });
     add ("Arma la traccia selezionata", {}, [this]
     {
         if (auto t = sessionView.getSelectedTrack(); t != nullptr && recorder != nullptr)

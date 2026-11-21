@@ -157,6 +157,22 @@ namespace icons
         return { p, false };
     }
 
+    Icon automation()
+    {
+        // Una spezzata con i suoi punti, come una curva di automazione
+        const juce::Point<float> pts[] = { { 0.14f, 0.7f }, { 0.38f, 0.32f }, { 0.62f, 0.58f }, { 0.86f, 0.28f } };
+        juce::Path p;
+        p.startNewSubPath (pts[0]);
+
+        for (int i = 1; i < 4; ++i)
+            p.lineTo (pts[i]);
+
+        for (auto pt : pts)
+            p.addEllipse (pt.x - 0.06f, pt.y - 0.06f, 0.12f, 0.12f);
+
+        return { p, false };
+    }
+
     Icon loop()
     {
         juce::Path p;

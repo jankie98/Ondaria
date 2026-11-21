@@ -37,6 +37,7 @@ namespace icons
     Icon folder();
     Icon loop();
     Icon capture();
+    Icon automation();
 
     /** Disegna un'icona nel rettangolo dato. */
     void draw (juce::Graphics&, const Icon&, juce::Rectangle<float>, juce::Colour);

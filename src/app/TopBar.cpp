@@ -5,6 +5,7 @@
 */
 
 #include "TopBar.h"
+#include "session/Automation.h"
 #include "session/Session.h"
 
 namespace te = tracktion;
@@ -45,6 +46,14 @@ TopBar::TopBar (te::Engine& e) : engine (e)
     captureButton.setClickingTogglesState (false);
     captureButton.onClick = [this] { if (onCapture) onCapture(); };
 
+    automationButton.setActiveColour (colours::record);
+    automationButton.setClickingTogglesState (false);
+    automationButton.onClick = [this]
+    {
+        if (edit != nullptr)
+            automation::setWriting (*edit, ! automation::isWriting (*edit));
+    };
+
     loopButton.setClickingTogglesState (false);
     loopButton.onClick = [this]
     {
@@ -80,7 +89,7 @@ TopBar::TopBar (te::Engine& e) : engine (e)
     paletteButton.onClick = [this] { if (onShowCommandPalette) onShowCommandPalette(); };
 
     for (auto* c : std::initializer_list<juce::Component*> { &menuButton, &undoButton, &redoButton, &playButton, &stopButton,
-                                                             &recordButton, &captureButton, &loopButton, &metronomeButton, &tempo,
+                                                             &recordButton, &captureButton, &automationButton, &loopButton, &metronomeButton, &tempo,
                                                              &timeSigButton, &quantisationButton, &paletteButton })
         addAndMakeVisible (c);
 
@@ -118,6 +127,7 @@ void TopBar::timerCallback()
         recordButton.setToggleState (isRecording != nullptr && isRecording(), juce::dontSendNotification);
         // Si accende quando c'e' qualcosa di appena suonato da catturare
         captureButton.setToggleState (canCapture != nullptr && canCapture(), juce::dontSendNotification);
+        automationButton.setToggleState (automation::isWriting (*edit), juce::dontSendNotification);
         loopButton.setToggleState (t.looping.get(), juce::dontSendNotification);
         metronomeButton.setToggleState (edit->clickTrackEnabled.get(), juce::dontSendNotification);
         undoButton.setEnabled (edit->getUndoManager().canUndo());
@@ -260,10 +270,10 @@ void TopBar::resized()
     paletteButton.setButtonText (paletteButton.getWidth() > 240 ? "Cerca azioni, device, plugin" : "Cerca");
 
     // Gruppo centrale: trasporto, posizione, tempo, metro, quantizzazione
-    const int groupWidth = 6 * 34 + 12 + 104 + 112 + 6 + 52 + 6 + 96;
+    const int groupWidth = 7 * 34 + 12 + 104 + 112 + 6 + 52 + 6 + 96;
     auto group = r.withSizeKeepingCentre (juce::jmin (groupWidth, r.getWidth()), r.getHeight());
 
-    for (auto* b : { &playButton, &stopButton, &recordButton, &captureButton, &loopButton, &metronomeButton })
+    for (auto* b : { &playButton, &stopButton, &recordButton, &captureButton, &automationButton, &loopButton, &metronomeButton })
         b->setBounds (group.removeFromLeft (34));
 
     group.removeFromLeft (12 + 104);

@@ -15,6 +15,7 @@
 #include "PluginBrowserComponent.h"
 #include "SessionView.h"
 #include "TopBar.h"
+#include "session/Automation.h"
 #include "session/Capture.h"
 #include "session/Recording.h"
 
