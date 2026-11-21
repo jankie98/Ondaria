@@ -1,6 +1,6 @@
 cmake_minimum_required (VERSION 3.22)
 
-project (Sonora
+project (Ondaria
          VERSION 0.1.0
          DESCRIPTION "DAW open source con session view, arrangement e host plugin multi-formato"
          LANGUAGES C CXX)
@@ -101,9 +101,18 @@ juce_add_binary_data (SonoraFonts
         resources/fonts/JetBrainsMono-Regular.ttf)
 set_target_properties (SonoraFonts PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# Icona dell'app, usata anche per la finestra (barra delle applicazioni).
+juce_add_binary_data (OndariaIcons
+    HEADER_NAME OndariaIcons.h
+    NAMESPACE OndariaIcons
+    SOURCES
+        resources/icons/ondaria-512.png)
+set_target_properties (OndariaIcons PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 #==============================================================================
 # Scanner dei plugin: processo separato che carica un solo file di plugin.
-juce_add_console_app (sonora-plugin-scanner PRODUCT_NAME "sonora-plugin-scanner")
+juce_add_console_app (sonora-plugin-scanner PRODUCT_NAME "ondaria-plugin-scanner")
+set_target_properties (sonora-plugin-scanner PROPERTIES OUTPUT_NAME "ondaria-plugin-scanner")
 target_sources (sonora-plugin-scanner PRIVATE src/scanner/ScannerMain.cpp ${SONORA_HOST_SOURCES})
 sonora_configure_target (sonora-plugin-scanner)
 target_compile_definitions (sonora-plugin-scanner PRIVATE JUCE_GUI_BASICS_INCLUDE_XHEADERS=1)
@@ -114,9 +123,11 @@ target_link_libraries (sonora-plugin-scanner PRIVATE
 #==============================================================================
 # Applicazione principale
 juce_add_gui_app (Sonora
-    PRODUCT_NAME "Sonora"
-    COMPANY_NAME "Sonora"
-    BUNDLE_ID "org.sonora.daw"
+    PRODUCT_NAME "Ondaria"
+    COMPANY_NAME "Ondaria"
+    BUNDLE_ID "org.ondaria.daw"
+    ICON_BIG "${CMAKE_SOURCE_DIR}/resources/icons/ondaria-512.png"
+    ICON_SMALL "${CMAKE_SOURCE_DIR}/resources/icons/ondaria-256.png"
     MICROPHONE_PERMISSION_ENABLED TRUE
     NEEDS_CURL FALSE
     NEEDS_WEB_BROWSER FALSE)
@@ -157,6 +168,7 @@ sonora_configure_target (Sonora)
 
 target_link_libraries (Sonora PRIVATE
     SonoraFonts
+    OndariaIcons
     tracktion::tracktion_core
     tracktion::tracktion_engine
     tracktion::tracktion_graph
@@ -171,6 +183,27 @@ add_custom_command (TARGET Sonora POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "$<TARGET_FILE:sonora-plugin-scanner>"
             "$<TARGET_FILE_DIR:Sonora>")
+
+#==============================================================================
+# Installazione su Linux: app e scanner in lib/ondaria, comando "ondaria",
+# voce nel menu delle applicazioni (.desktop) e icona nel tema hicolor.
+# Uso: cmake --install build --component ondaria
+# (il componente evita di installare anche gli header di JUCE e Tracktion).
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    include (GNUInstallDirs)
+    install (PROGRAMS "$<TARGET_FILE:Sonora>" "$<TARGET_FILE:sonora-plugin-scanner>"
+             DESTINATION "${CMAKE_INSTALL_LIBDIR}/ondaria" COMPONENT ondaria)
+    configure_file (resources/linux/ondaria.in "${CMAKE_BINARY_DIR}/ondaria" @ONLY)
+    install (PROGRAMS "${CMAKE_BINARY_DIR}/ondaria" DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT ondaria)
+    set (ONDARIA_EXEC "ondaria")
+    configure_file (resources/linux/ondaria.desktop.in "${CMAKE_BINARY_DIR}/ondaria.desktop" @ONLY)
+    install (FILES "${CMAKE_BINARY_DIR}/ondaria.desktop" DESTINATION "${CMAKE_INSTALL_DATADIR}/applications"
+             COMPONENT ondaria)
+    install (FILES resources/icons/ondaria.svg DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps"
+             COMPONENT ondaria)
+    install (FILES resources/icons/ondaria-256.png DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps"
+             RENAME ondaria.png COMPONENT ondaria)
+endif()
 
 #==============================================================================
 if (SONORA_BUILD_TESTS)

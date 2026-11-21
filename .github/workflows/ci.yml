@@ -49,23 +49,26 @@ jobs:
       - name: Prepara il pacchetto (Linux)
         if: runner.os == 'Linux'
         run: |
-          mkdir -p dist/Sonora
-          cp build/Sonora_artefacts/Release/Sonora dist/Sonora/
-          cp build/Sonora_artefacts/Release/sonora-plugin-scanner dist/Sonora/
-          tar -czf dist/Sonora-linux-x64.tar.gz -C dist Sonora
+          mkdir -p dist/Ondaria
+          cp build/Sonora_artefacts/Release/Ondaria dist/Ondaria/
+          cp build/Sonora_artefacts/Release/ondaria-plugin-scanner dist/Ondaria/
+          cp resources/icons/ondaria.svg dist/Ondaria/
+          cp resources/icons/ondaria-256.png dist/Ondaria/ondaria.png
+          cp resources/linux/ondaria.desktop.in resources/linux/installa.sh dist/Ondaria/
+          tar -czf dist/Ondaria-linux-x64.tar.gz -C dist Ondaria
 
       - name: Prepara il pacchetto (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force dist/Sonora | Out-Null
-          Copy-Item build/Sonora_artefacts/Release/Sonora.exe dist/Sonora/
-          Copy-Item build/Sonora_artefacts/Release/sonora-plugin-scanner.exe dist/Sonora/
-          Compress-Archive -Path dist/Sonora -DestinationPath dist/Sonora-windows-x64.zip
+          New-Item -ItemType Directory -Force dist/Ondaria | Out-Null
+          Copy-Item build/Sonora_artefacts/Release/Ondaria.exe dist/Ondaria/
+          Copy-Item build/Sonora_artefacts/Release/ondaria-plugin-scanner.exe dist/Ondaria/
+          Compress-Archive -Path dist/Ondaria -DestinationPath dist/Ondaria-windows-x64.zip
 
       - name: Carica il pacchetto
         uses: actions/upload-artifact@v4
         with:
-          name: Sonora-${{ runner.os }}
-          path: dist/Sonora-*
+          name: Ondaria-${{ runner.os }}
+          path: dist/Ondaria-*
           retention-days: 30
