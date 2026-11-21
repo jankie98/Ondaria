@@ -16,7 +16,7 @@ namespace te = tracktion;
 namespace sonora
 {
 
-static constexpr const char* keyboardDeviceName = "Tastiera Sonora";
+static constexpr const char* keyboardDeviceName = "Tastiera Ondaria";
 static constexpr const char* projectExtension = ".tracktionedit";
 static constexpr int statusBarHeight = 26;
 static constexpr int detailHeaderHeight = 40;
@@ -145,7 +145,7 @@ MainComponent::~MainComponent()
 
 juce::File MainComponent::getProjectsFolder()
 {
-    auto folder = juce::File::getSpecialLocation (juce::File::userDocumentsDirectory).getChildFile ("Sonora");
+    auto folder = juce::File::getSpecialLocation (juce::File::userDocumentsDirectory).getChildFile ("Ondaria");
     folder.createDirectory();
     return folder;
 }
@@ -207,7 +207,7 @@ void MainComponent::setEdit (std::unique_ptr<te::Edit> newEdit)
     recorder->setSelectedTrack (sessionView.getSelectedTrack());
 
     if (auto top = getTopLevelComponent(); top != nullptr && top != this)
-        top->setName ("Sonora - " + te::EditFileOperations (*edit).getEditFile().getFileNameWithoutExtension());
+        top->setName ("Ondaria - " + te::EditFileOperations (*edit).getEditFile().getFileNameWithoutExtension());
 
     repaint();
 }

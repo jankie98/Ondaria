@@ -22,7 +22,7 @@ Il documento completo con la scelta della base, i progetti valutati e la roadmap
 
 ## Scansione isolata
 
-`IsolatedPluginScanner` sostituisce lo scanner di `KnownPluginList`. Per ogni file avvia `sonora-plugin-scanner --format=... --file=... --output=...` con un timeout di 60 secondi. Crash, timeout o codice di uscita diverso da 0 mettono il file nella lista di esclusione.
+`IsolatedPluginScanner` sostituisce lo scanner di `KnownPluginList`. Per ogni file avvia `ondaria-plugin-scanner --format=... --file=... --output=...` con un timeout di 60 secondi. Crash, timeout o codice di uscita diverso da 0 mettono il file nella lista di esclusione.
 
 ## Prossimi passi dell'host
 
