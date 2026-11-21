@@ -45,3 +45,27 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Prepara il pacchetto (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p dist/Sonora
+          cp build/Sonora_artefacts/Release/Sonora dist/Sonora/
+          cp build/Sonora_artefacts/Release/sonora-plugin-scanner dist/Sonora/
+          tar -czf dist/Sonora-linux-x64.tar.gz -C dist Sonora
+
+      - name: Prepara il pacchetto (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist/Sonora | Out-Null
+          Copy-Item build/Sonora_artefacts/Release/Sonora.exe dist/Sonora/
+          Copy-Item build/Sonora_artefacts/Release/sonora-plugin-scanner.exe dist/Sonora/
+          Compress-Archive -Path dist/Sonora -DestinationPath dist/Sonora-windows-x64.zip
+
+      - name: Carica il pacchetto
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sonora-${{ runner.os }}
+          path: dist/Sonora-*
+          retention-days: 30

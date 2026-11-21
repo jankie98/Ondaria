@@ -24,6 +24,10 @@ Il progetto è un'implementazione originale (codice, nome e grafica) e non conti
 - **Catena di device** per traccia: aggiungi, apri l'interfaccia, attiva/disattiva, rimuovi.
 - **Tastiera MIDI virtuale** per suonare gli strumenti anche senza controller.
 
+## Scaricare una versione pronta
+
+Ogni build della CI produce un pacchetto per Linux (`Sonora-linux-x64.tar.gz`) e uno per Windows (`Sonora-windows-x64.zip`): apri la scheda **Actions**, scegli l'ultima esecuzione riuscita e scarica l'artefatto in fondo alla pagina. Tieni `sonora-plugin-scanner` nella stessa cartella di Sonora.
+
 ## Compilare
 
 Requisiti: CMake 3.22+, un compilatore C++20 (GCC 11+, Clang 14+ o Visual Studio 2022).
