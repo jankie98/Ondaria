@@ -11,7 +11,7 @@
 namespace sonora
 {
 
-/** Impostazioni dell'interfaccia (tema, cartella dei campioni...), accanto a quelle del motore. */
+/** Impostazioni dell'interfaccia di Ondaria (tema, cartella dei campioni...), accanto a quelle del motore. */
 inline std::unique_ptr<juce::PropertiesFile> openUiSettings (tracktion::Engine& e)
 {
     juce::PropertiesFile::Options o;

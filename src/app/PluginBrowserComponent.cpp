@@ -26,7 +26,7 @@ namespace
         d.fileOrIdentifier = xmlType;
         d.category = category;
         d.isInstrument = isInstrument;
-        d.manufacturerName = "Sonora";
+        d.manufacturerName = "Ondaria";
         return d;
     }
 
