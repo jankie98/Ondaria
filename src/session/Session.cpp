@@ -8,6 +8,7 @@
 */
 
 #include "Session.h"
+#include "Warp.h"
 
 namespace te = tracktion;
 using namespace tracktion::literals;
@@ -240,8 +241,13 @@ te::Clip* createClipFromFile (te::ClipSlot& slot, const juce::File& file)
             return nullptr;
 
         clip->setUsesProxy (false);
-        clip->setAutoTempo (true);
-        clip->setLoopRangeBeats ({ 0_bp, clip->getLengthInBeats() });
+        warp::prepareImported (*clip);
+
+        // Nella session le clip girano in loop: sulle battute se seguono il tempo
+        if (clip->getAutoTempo())
+            clip->setLoopRangeBeats ({ 0_bp, clip->getLengthInBeats() });
+        else
+            clip->setLoopRange ({ 0_tp, clip->getPosition().getLength() });
         clip->setColour (slot.track.getColour());
         return clip.get();
     }

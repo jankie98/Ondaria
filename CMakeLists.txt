@@ -19,6 +19,31 @@ set (SONORA_VST2_SDK_DIR "" CACHE PATH "Cartella dell'SDK VST2 (opzionale): abil
 #==============================================================================
 # Dipendenze: JUCE (dentro Tracktion Engine), Tracktion Engine, CLAP
 set (TE_ADD_EXAMPLES OFF CACHE BOOL "" FORCE)
+
+# Correzioni nostre a Tracktion Engine (patches/tracktion-*.patch): si applicano al
+# sottomodulo se non ci sono gia'. Vedi patches/README.md.
+find_package (Git REQUIRED)
+file (GLOB SONORA_TE_PATCHES "${CMAKE_SOURCE_DIR}/patches/tracktion-*.patch")
+set_property (DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${SONORA_TE_PATCHES})
+
+foreach (patch IN LISTS SONORA_TE_PATCHES)
+    execute_process (COMMAND "${GIT_EXECUTABLE}" apply --ignore-whitespace --reverse --check "${patch}"
+                     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/external/tracktion_engine"
+                     RESULT_VARIABLE alreadyApplied OUTPUT_QUIET ERROR_QUIET)
+
+    if (NOT alreadyApplied EQUAL 0)
+        execute_process (COMMAND "${GIT_EXECUTABLE}" apply --ignore-whitespace "${patch}"
+                         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/external/tracktion_engine"
+                         RESULT_VARIABLE applied ERROR_VARIABLE applyError)
+
+        if (NOT applied EQUAL 0)
+            message (FATAL_ERROR "Non riesco ad applicare ${patch} a Tracktion Engine:\n${applyError}")
+        endif()
+
+        message (STATUS "Applicata a Tracktion Engine: ${patch}")
+    endif()
+endforeach()
+
 add_subdirectory (external/tracktion_engine/modules/juce)
 add_subdirectory (external/tracktion_engine/modules)
 add_subdirectory (external/clap EXCLUDE_FROM_ALL)
@@ -47,6 +72,7 @@ function (sonora_configure_target target)
         JUCE_DISPLAY_SPLASH_SCREEN=0
         JUCE_USE_LAME_AUDIO_FORMAT=1
         TRACKTION_ENABLE_LIBLAME=1
+        TRACKTION_ENABLE_TIMESTRETCH_SIGNALSMITH=1
         SONORA_VERSION="${PROJECT_VERSION}")
 
     target_link_libraries (${target} PRIVATE clap juce::juce_recommended_config_flags)
@@ -82,6 +108,8 @@ set (SONORA_SESSION_SOURCES
     src/session/Automation.h
     src/session/Freeze.cpp
     src/session/Freeze.h
+    src/session/Warp.cpp
+    src/session/Warp.h
     src/session/Tasks.h
     src/session/Export.cpp
     src/session/Export.h
@@ -130,6 +158,8 @@ target_sources (Sonora PRIVATE
     src/app/Main.cpp
     src/app/MainComponent.cpp
     src/app/MainComponent.h
+    src/app/AudioClipEditor.cpp
+    src/app/AudioClipEditor.h
     src/app/PianoRoll.cpp
     src/app/PianoRoll.h
     src/app/CommandPalette.cpp

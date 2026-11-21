@@ -5,6 +5,7 @@
 */
 
 #include "MainComponent.h"
+#include "session/Warp.h"
 #include "Animation.h"
 #include "FreezeUI.h"
 #include "Settings.h"
@@ -65,9 +66,11 @@ MainComponent::MainComponent (te::Engine& e)
     showClip = [this] (te::Clip* c)
     {
         auto midi = dynamic_cast<te::MidiClip*> (c);
+        auto audio = dynamic_cast<te::WaveAudioClip*> (c);
         pianoRoll.setClip (midi);
+        audioEditor.setClip (audio);
 
-        if (midi != nullptr)
+        if (midi != nullptr || audio != nullptr)
             setDetail (Detail::clip);
         else if (detail == Detail::clip)
             setDetail (Detail::devices);
@@ -108,6 +111,8 @@ MainComponent::MainComponent (te::Engine& e)
     addChildComponent (arrangement);
     addChildComponent (keyboard);
     addChildComponent (pianoRoll);
+    addChildComponent (audioEditor);
+    audioEditor.onStatus = [this] (const juce::String& m) { status (m); };
     setDetail (Detail::devices);
     addChildComponent (palette);
     addChildComponent (exportPanel);
@@ -158,6 +163,7 @@ void MainComponent::setEdit (std::unique_ptr<te::Edit> newEdit)
     sessionView.setEdit (nullptr);
     arrangement.setEdit (nullptr);
     pianoRoll.setClip (nullptr);
+    audioEditor.setClip (nullptr);
     deviceChain.setTrack (nullptr);
     topBar.setEdit (nullptr);
 
@@ -396,6 +402,7 @@ void MainComponent::resized()
     auto body = detailArea.reduced (14, 0).withTrimmedBottom (12);
     deviceChain.setBounds (body);
     pianoRoll.setBounds (body);
+    audioEditor.setBounds (body);
     keyboard.setBounds (body);
     keyboard.setKeyWidth (juce::jmax (12.0f, (float) body.getWidth() / 52.0f));
 
@@ -462,7 +469,8 @@ void MainComponent::setDetail (Detail d)
 
     detail = d;
     deviceChain.setVisible (d == Detail::devices);
-    pianoRoll.setVisible (d == Detail::clip);
+    pianoRoll.setVisible (d == Detail::clip && audioEditor.getClip() == nullptr);
+    audioEditor.setVisible (d == Detail::clip && audioEditor.getClip() != nullptr);
     keyboard.setVisible (d == Detail::keyboard);
     addDeviceButton.setVisible (d == Detail::devices);
     devicesTab.setToggleState (d == Detail::devices, juce::dontSendNotification);
@@ -562,6 +570,18 @@ void MainComponent::timerCallback()
 
     // Barra informazioni: cosa si puo' fare dove sta il mouse
     hintText = hintUnderMouse (*this);
+
+    // Le clip in Ripitch cambiano velocita' con il tempo del progetto
+    if (edit != nullptr)
+    {
+        const double bpm = edit->tempoSequence.getTempoAt (te::TimePosition()).getBpm();
+
+        if (std::abs (bpm - lastTempo) > 1.0e-6)
+        {
+            lastTempo = bpm;
+            warp::followTempo (*edit);
+        }
+    }
 
     repaint (getLocalBounds().removeFromBottom (statusBarHeight));
 }

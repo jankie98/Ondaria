@@ -5,6 +5,7 @@
 */
 
 #include "ArrangementView.h"
+#include "AudioClipEditor.h"
 #include "Animation.h"
 #include "FreezeUI.h"
 #include "RecordingUI.h"
@@ -553,7 +554,7 @@ te::SmartThumbnail* ArrangementView::getThumbnail (te::WaveAudioClip& c)
     auto& thumb = thumbnails[c.itemID];
 
     if (thumb == nullptr)
-        thumb = std::make_unique<te::SmartThumbnail> (c.edit.engine, c.getAudioFile(), *this, &c.edit);
+        thumb = std::make_unique<te::SmartThumbnail> (c.edit.engine, te::AudioFile (c.edit.engine, c.getOriginalFile()), *this, &c.edit);
 
     return thumb.get();
 }
@@ -892,12 +893,7 @@ void ArrangementView::drawClip (juce::Graphics& g, te::Clip& c, juce::Rectangle<
     else if (auto wc = dynamic_cast<te::WaveAudioClip*> (&c))
     {
         if (auto thumb = getThumbnail (*wc))
-        {
-            const auto pos = c.getPosition();
-            g.setColour (colour.brighter (0.3f));
-            const auto sourceStart = te::TimePosition() + pos.getOffset();
-            thumb->drawChannels (g, body, { sourceStart, sourceStart + pos.getLength() }, 1.0f);
-        }
+            drawWarpedWaveform (g, *thumb, *wc, body.toFloat(), colour.brighter (0.3f));
     }
 
     if (isOnFrozenTrack (c))
