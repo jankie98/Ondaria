@@ -25,13 +25,13 @@ namespace
         d.fileOrIdentifier = xmlType;
         d.category = category;
         d.isInstrument = isInstrument;
-        d.manufacturerName = "Sonora";
+        d.manufacturerName = "Ondaria";
         return d;
     }
 
     constexpr const char* sampleFolderKey = "cartellaCampioni";
 
-    /** Impostazioni dell'interfaccia di Sonora, accanto a quelle del motore. */
+    /** Impostazioni dell'interfaccia di Ondaria, accanto a quelle del motore. */
     std::unique_ptr<juce::PropertiesFile> openSettings (te::Engine& e)
     {
         juce::PropertiesFile::Options o;

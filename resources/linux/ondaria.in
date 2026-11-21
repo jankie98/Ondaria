@@ -1,0 +1,4 @@
+#!/bin/sh
+# Avvia Ondaria installata in <prefisso>/@CMAKE_INSTALL_LIBDIR@/ondaria.
+here=$(dirname "$(readlink -f "$0")")
+exec "$here/../@CMAKE_INSTALL_LIBDIR@/ondaria/Ondaria" "$@"
