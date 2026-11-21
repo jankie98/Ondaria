@@ -128,7 +128,9 @@ bool Recorder::isAutoArmed (const te::AudioTrack& t) const
 
 bool Recorder::isArmed (const te::AudioTrack& t) const
 {
-    return getInput (t).isNotEmpty() && (isExplicitlyArmed (t) || isAutoArmed (t));
+    // Una traccia congelata suona il suo file: non registra finche' non si scongela
+    return getInput (t).isNotEmpty() && (isExplicitlyArmed (t) || isAutoArmed (t))
+            && ! t.isFrozen (te::Track::anyFreeze);
 }
 
 void Recorder::setArmed (te::AudioTrack& t, bool armed)

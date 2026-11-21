@@ -46,6 +46,7 @@ private:
     void updateToolbar();
     void showGridMenu();
     void showLengthMenu();
+    bool isFrozen() const;
 
     tracktion::MidiClip::Ptr clip;
     FlatButton gridButton { "1/16", 12.0f }, lengthButton { "1 battuta", 12.0f },

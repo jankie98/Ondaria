@@ -8,6 +8,8 @@
 
 #include <tracktion_engine/tracktion_engine.h>
 
+#include "Widgets.h"
+
 namespace sonora
 {
 
@@ -32,11 +34,14 @@ private:
     void rebuild();
     tracktion::Plugin::Array getUserPlugins() const;
     juce::Colour trackColour() const;
+    bool isTrackFrozen() const;
 
     tracktion::AudioTrack::Ptr track;
     juce::OwnedArray<DeviceBox> boxes;
     tracktion::Plugin::Array shownPlugins;
     juce::Colour shownColour;
+    bool shownFrozen = false;
+    FlatButton unfreezeButton { "Scongela", 12.0f };
     juce::Viewport viewport;
     juce::Component content;
 };

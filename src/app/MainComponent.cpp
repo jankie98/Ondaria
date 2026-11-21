@@ -6,6 +6,7 @@
 
 #include "MainComponent.h"
 #include "Animation.h"
+#include "FreezeUI.h"
 #include "Theme.h"
 #include "session/Session.h"
 
@@ -221,7 +222,7 @@ void MainComponent::openProject (const juce::File& file)
     std::unique_ptr<te::Edit> e;
 
     if (file.existsAsFile())
-        e = te::loadEditFromFile (engine, file);
+        e = session::loadEdit (engine, file);
 
     if (e == nullptr)
     {
@@ -634,6 +635,39 @@ void MainComponent::showCommandPalette()
             arrangement.repaint();
         }
     });
+    add ("Congela o scongela la traccia", {}, [this]
+    {
+        auto t = sessionView.getSelectedTrack();
+
+        if (t == nullptr)
+            return status ("Seleziona prima una traccia");
+
+        if (freeze::isFrozen (*t))
+        {
+            freeze::unfreeze (*t);
+            status ("Scongelata " + t->getName() + ": i device tornano attivi");
+        }
+        else
+        {
+            auto r = freeze::freeze (*t);
+            status (r.wasOk() ? "Congelata " + t->getName() + ": suona dal file, i device non usano CPU" : r.getErrorMessage());
+        }
+
+        repaint();
+    });
+    add ("Appiattisci la traccia (trasforma in audio)", {}, [this]
+    {
+        auto t = sessionView.getSelectedTrack();
+
+        if (t == nullptr)
+            return status ("Seleziona prima una traccia");
+
+        t->edit.getUndoManager().beginNewTransaction ("Appiattisci " + t->getName());
+        auto r = freeze::flatten (*t);
+        status (r.wasOk() ? "Appiattita " + t->getName() + juce::String::fromUTF8 (": ora \xc3\xa8 una clip audio (Ctrl+Z per tornare indietro)")
+                          : r.getErrorMessage());
+        repaint();
+    });
     add ("Arma la traccia selezionata", {}, [this]
     {
         if (auto t = sessionView.getSelectedTrack(); t != nullptr && recorder != nullptr)
@@ -678,6 +712,12 @@ void MainComponent::insertDevice (const juce::PluginDescription& desc)
     if (track == nullptr || edit == nullptr)
     {
         status ("Seleziona prima una traccia");
+        return;
+    }
+
+    if (freeze::isFrozen (*track))
+    {
+        status (freezeui::frozenNotice (*track));
         return;
     }
 

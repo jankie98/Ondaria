@@ -119,6 +119,10 @@ public:
     /** Collega il misuratore (nullptr per scollegarlo). */
     void setMeasurer (tracktion::LevelMeasurer*);
 
+    /** Il misuratore e' gia' stato distrutto (per esempio con il contesto di
+        riproduzione): lo dimentica senza toccarlo. */
+    void forgetMeasurer()                       { measurer = nullptr; }
+
     void paint (juce::Graphics&) override;
 
 private:

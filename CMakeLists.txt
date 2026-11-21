@@ -80,6 +80,9 @@ set (SONORA_SESSION_SOURCES
     src/session/Notes.h
     src/session/Automation.cpp
     src/session/Automation.h
+    src/session/Freeze.cpp
+    src/session/Freeze.h
+    src/session/Tasks.h
     src/session/Export.cpp
     src/session/Export.h
     src/session/Capture.cpp
@@ -132,6 +135,8 @@ target_sources (Sonora PRIVATE
     src/app/CommandPalette.cpp
     src/app/ExportPanel.cpp
     src/app/ExportPanel.h
+    src/app/FreezeUI.h
+    src/app/TaskOverlay.h
     src/app/CommandPalette.h
     src/app/DeviceChainComponent.cpp
     src/app/DeviceChainComponent.h

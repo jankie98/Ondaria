@@ -275,6 +275,10 @@ void deleteClip (te::ClipSlot& slot)
 
 void launchClip (te::Clip& clip)
 {
+    // Una traccia congelata suona solo il suo file: gli slot restano fermi
+    if (auto at = dynamic_cast<te::AudioTrack*> (clip.getTrack()); at != nullptr && at->isFrozen (te::Track::individualFreeze))
+        return;
+
     auto& e = clip.edit;
     startTransportIfStopped (e);
 
@@ -296,8 +300,8 @@ void launchScene (te::Edit& e, int sceneIndex)
         auto slots = at->getClipSlotList().getClipSlots();
         auto target = slots[sceneIndex] != nullptr ? slots[sceneIndex]->getClip() : nullptr;
 
-        // Slot vuoto: la traccia continua con quello che sta suonando.
-        if (target == nullptr)
+        // Slot vuoto (o traccia congelata): la traccia continua con quello che sta suonando.
+        if (target == nullptr || at->isFrozen (te::Track::individualFreeze))
             continue;
 
         for (auto slot : slots)
@@ -392,6 +396,26 @@ void startTransportFromBar (te::Edit& e)
 {
     startTransportIfStopped (e);
     startTransport (e);
+}
+
+std::unique_ptr<te::Edit> loadEdit (te::Engine& engine, const juce::File& file)
+{
+    // L'id sta come attributo della radice: basta leggere l'inizio del file
+    te::ProjectItemID id;
+
+    if (auto root = juce::XmlDocument (file).getDocumentElementIfTagMatches ("EDIT"))
+        id = te::ProjectItemID (root->getStringAttribute ("projectID"));
+
+    if (! id.isValid())
+        id = te::ProjectItemID::createNewID ({});
+
+    auto state = te::loadEditFromFile (engine, file, id);
+
+    if (! state.isValid())
+        return {};
+
+    return te::Edit::createEdit ({ engine, state, id, te::Edit::forEditing, nullptr,
+                                   te::Edit::getDefaultNumUndoLevels(), [file] { return file; }, {} });
 }
 
 void setUpFilePaths (te::Edit& e)
