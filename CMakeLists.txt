@@ -70,6 +70,23 @@ set (SONORA_HOST_SOURCES
     src/host/ScanProtocol.h)
 list (TRANSFORM SONORA_HOST_SOURCES PREPEND "${CMAKE_SOURCE_DIR}/" OUTPUT_VARIABLE SONORA_HOST_SOURCES_ABS)
 
+# Logica della session view (senza interfaccia), usata dall'app e dai test.
+set (SONORA_SESSION_SOURCES
+    src/session/Session.cpp
+    src/session/Session.h)
+list (TRANSFORM SONORA_SESSION_SOURCES PREPEND "${CMAKE_SOURCE_DIR}/" OUTPUT_VARIABLE SONORA_SESSION_SOURCES_ABS)
+
+# Caratteri dell'interfaccia (SIL Open Font License, vedi resources/fonts).
+juce_add_binary_data (SonoraFonts
+    HEADER_NAME SonoraFonts.h
+    NAMESPACE SonoraFonts
+    SOURCES
+        resources/fonts/Inter-Regular.ttf
+        resources/fonts/Inter-Medium.ttf
+        resources/fonts/Inter-SemiBold.ttf
+        resources/fonts/JetBrainsMono-Regular.ttf)
+set_target_properties (SonoraFonts PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 #==============================================================================
 # Scanner dei plugin: processo separato che carica un solo file di plugin.
 juce_add_console_app (sonora-plugin-scanner PRODUCT_NAME "sonora-plugin-scanner")
@@ -94,19 +111,30 @@ target_sources (Sonora PRIVATE
     src/app/Main.cpp
     src/app/MainComponent.cpp
     src/app/MainComponent.h
+    src/app/CommandPalette.cpp
+    src/app/CommandPalette.h
     src/app/DeviceChainComponent.cpp
     src/app/DeviceChainComponent.h
     src/app/PluginBrowserComponent.cpp
     src/app/PluginBrowserComponent.h
     src/app/PluginWindow.cpp
     src/app/PluginWindow.h
+    src/app/SessionView.cpp
+    src/app/SessionView.h
     src/app/SonoraBehaviour.h
-    src/app/SonoraLookAndFeel.h
+    src/app/Theme.cpp
+    src/app/Theme.h
+    src/app/TopBar.cpp
+    src/app/TopBar.h
+    src/app/Widgets.cpp
+    src/app/Widgets.h
+    ${SONORA_SESSION_SOURCES}
     ${SONORA_HOST_SOURCES})
 
 sonora_configure_target (Sonora)
 
 target_link_libraries (Sonora PRIVATE
+    SonoraFonts
     tracktion::tracktion_core
     tracktion::tracktion_engine
     tracktion::tracktion_graph

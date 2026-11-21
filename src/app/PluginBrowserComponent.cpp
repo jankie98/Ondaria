@@ -5,7 +5,6 @@
 */
 
 #include "PluginBrowserComponent.h"
-#include "SonoraLookAndFeel.h"
 
 namespace te = tracktion;
 
@@ -14,6 +13,9 @@ namespace sonora
 
 namespace
 {
+    const juce::Colour instrumentColour { 0xfff2a93b }, effectColour { 0xff4ade80 },
+                       pluginColour { 0xff7c9cff }, sampleColour { 0xffc084fc };
+
     juce::PluginDescription makeBuiltIn (const juce::String& xmlType, const juce::String& name,
                                          const juce::String& category, bool isInstrument)
     {
@@ -23,29 +25,64 @@ namespace
         d.fileOrIdentifier = xmlType;
         d.category = category;
         d.isInstrument = isInstrument;
-        d.manufacturerName = "Tracktion Engine";
+        d.manufacturerName = "Sonora";
         return d;
+    }
+
+    constexpr const char* sampleFolderKey = "cartellaCampioni";
+
+    /** Impostazioni dell'interfaccia di Sonora, accanto a quelle del motore. */
+    std::unique_ptr<juce::PropertiesFile> openSettings (te::Engine& e)
+    {
+        juce::PropertiesFile::Options o;
+        return std::make_unique<juce::PropertiesFile> (e.getPropertyStorage().getAppPrefsFolder()
+                                                         .getChildFile ("sonora-interfaccia.xml"), o);
     }
 }
 
 PluginBrowserComponent::PluginBrowserComponent (te::Engine& e) : engine (e)
 {
-    title.setFont (juce::FontOptions (15.0f, juce::Font::bold));
-    addAndMakeVisible (title);
-
-    search.setTextToShowWhenEmpty ("Cerca...", colours::textDim);
-    search.onTextChange = [this] { rebuildList(); };
+    search.setTextToShowWhenEmpty ("Cerca nel browser", colours::textDim);
+    search.setFont (fonts::ui (13.0f));
+    search.setIndents (30, 8);
+    search.onTextChange = [this] { rebuildRows(); };
+    search.onReturnKey = [this] { returnKeyPressed (juce::jmax (0, list.getSelectedRow())); };
     addAndMakeVisible (search);
 
+    const std::pair<const char*, Filter> filters[] = { { "Tutto", Filter::all }, { "Strumenti", Filter::instruments },
+                                                       { "Effetti", Filter::effects }, { "Plugin", Filter::plugins },
+                                                       { "Campioni", Filter::samples } };
+
+    for (auto [label, f] : filters)
+    {
+        auto* chip = chips.add (new FlatButton (label, 11.5f));
+        chip->setBaseColour (colours::panelLight);
+        chip->setOnColours (colours::accent, colours::background);
+        chip->onClick = [this, f = f] { setFilter (f); };
+        addAndMakeVisible (chip);
+    }
+
+    manageButton.setBaseColour (colours::panel);
     manageButton.onClick = [this] { openPluginManager(); };
     addAndMakeVisible (manageButton);
 
+    folderButton.setBaseColour (colours::panel);
+    folderButton.onClick = [this] { chooseSampleFolder(); };
+    addChildComponent (folderButton);
+
     list.setModel (this);
-    list.setRowHeight (22);
+    list.setRowHeight (28);
+    list.setColour (juce::ListBox::backgroundColourId, colours::sidebar);
     addAndMakeVisible (list);
 
+    sampleFolder = juce::File (openSettings (engine)->getValue (sampleFolderKey));
+
+    if (! sampleFolder.isDirectory())
+        sampleFolder = juce::File::getSpecialLocation (juce::File::userMusicDirectory);
+
     engine.getPluginManager().knownPluginList.addChangeListener (this);
-    rebuildList();
+    rebuildDevices();
+    setFilter (Filter::all);
 }
 
 PluginBrowserComponent::~PluginBrowserComponent()
@@ -55,31 +92,60 @@ PluginBrowserComponent::~PluginBrowserComponent()
 
 void PluginBrowserComponent::paint (juce::Graphics& g)
 {
-    g.fillAll (colours::panel);
+    g.fillAll (colours::sidebar);
+    g.setColour (colours::divider);
+    g.fillRect (getLocalBounds().removeFromRight (1));
+}
+
+void PluginBrowserComponent::paintOverChildren (juce::Graphics& g)
+{
+    icons::draw (g, icons::search(), search.getBounds().removeFromLeft (30).withSizeKeepingCentre (13, 13).toFloat(),
+                 colours::textDim);
 }
 
 void PluginBrowserComponent::resized()
 {
-    auto r = getLocalBounds().reduced (6);
-    title.setBounds (r.removeFromTop (24));
-    search.setBounds (r.removeFromTop (26));
-    r.removeFromTop (4);
-    manageButton.setBounds (r.removeFromBottom (28));
-    r.removeFromBottom (4);
+    auto r = getLocalBounds().reduced (12, 14);
+    search.setBounds (r.removeFromTop (32));
+    r.removeFromTop (10);
+
+    // Etichette su piu' righe se non ci stanno.
+    int x = r.getX(), y = r.getY();
+
+    for (auto* chip : chips)
+    {
+        const int w = (int) juce::GlyphArrangement::getStringWidth (fonts::ui (11.5f), chip->getButtonText()) + 22;
+
+        if (x + w > r.getRight())
+        {
+            x = r.getX();
+            y += 28;
+        }
+
+        chip->setBounds (x, y, w, 24);
+        x += w + 6;
+    }
+
+    r.setTop (y + 24 + 10);
+    auto bottom = r.removeFromBottom (30);
+    manageButton.setBounds (bottom);
+    folderButton.setBounds (bottom);
+    r.removeFromBottom (8);
     list.setBounds (r);
 }
 
 void PluginBrowserComponent::changeListenerCallback (juce::ChangeBroadcaster*)
 {
-    rebuildList();
+    rebuildDevices();
+    rebuildRows();
 }
 
-void PluginBrowserComponent::rebuildList()
+void PluginBrowserComponent::rebuildDevices()
 {
     allItems.clearQuick();
 
-    allItems.add (makeBuiltIn (te::FourOscPlugin::xmlTypeName, "4OSC (sintetizzatore)", "Instrument", true));
-    allItems.add (makeBuiltIn (te::SamplerPlugin::xmlTypeName, "Sampler", "Instrument", true));
+    allItems.add (makeBuiltIn (te::FourOscPlugin::xmlTypeName, "Sintetizzatore 4OSC", "Instrument", true));
+    allItems.add (makeBuiltIn (te::SamplerPlugin::xmlTypeName, "Campionatore", "Instrument", true));
     allItems.add (makeBuiltIn (te::EqualiserPlugin::xmlTypeName, "EQ", "Effect", false));
     allItems.add (makeBuiltIn (te::CompressorPlugin::xmlTypeName, "Compressore", "Effect", false));
     allItems.add (makeBuiltIn (te::ReverbPlugin::xmlTypeName, "Riverbero", "Effect", false));
@@ -95,53 +161,145 @@ void PluginBrowserComponent::rebuildList()
     });
 
     allItems.addArray (types);
+}
 
-    const auto filter = search.getText().trim();
-    visibleItems.clearQuick();
+void PluginBrowserComponent::setFilter (Filter f)
+{
+    filter = f;
 
-    for (auto& d : allItems)
-        if (filter.isEmpty() || d.name.containsIgnoreCase (filter)
-             || d.manufacturerName.containsIgnoreCase (filter) || d.category.containsIgnoreCase (filter)
-             || d.pluginFormatName.containsIgnoreCase (filter))
-            visibleItems.add (d);
+    for (int i = 0; i < chips.size(); ++i)
+        chips[i]->setToggleState (i == (int) f, juce::dontSendNotification);
+
+    manageButton.setVisible (f != Filter::samples);
+    folderButton.setVisible (f == Filter::samples);
+    rebuildRows();
+}
+
+void PluginBrowserComponent::rebuildRows()
+{
+    rows.clear();
+    const auto query = search.getText().trim();
+
+    auto matches = [&query] (const juce::String& a, const juce::String& b)
+    {
+        return query.isEmpty() || a.containsIgnoreCase (query) || b.containsIgnoreCase (query);
+    };
+
+    if (filter != Filter::samples)
+    {
+        for (auto& d : allItems)
+        {
+            const bool builtIn = d.pluginFormatName == builtInFormat;
+
+            if ((filter == Filter::instruments && ! d.isInstrument)
+                 || (filter == Filter::effects && d.isInstrument)
+                 || (filter == Filter::plugins && builtIn))
+                continue;
+
+            if (! matches (d.name, d.manufacturerName + " " + d.pluginFormatName + " " + d.category))
+                continue;
+
+            rows.push_back ({ d.name, d.pluginFormatName,
+                              builtIn ? (d.isInstrument ? instrumentColour : effectColour) : pluginColour, d, {} });
+        }
+    }
+
+    if (filter == Filter::samples || (filter == Filter::all && query.isNotEmpty()))
+    {
+        // In "Tutto" i campioni compaiono solo cercando, per non affollare la lista.
+        auto files = sampleFolder.findChildFiles (juce::File::findFiles, true,
+                                                  juce::String (te::soundFileExtensions) + ";" + te::midiFileExtensions);
+        files.sort();
+
+        for (auto& f : files)
+        {
+            if (rows.size() > 2000)
+                break;
+
+            if (matches (f.getFileName(), {}))
+                rows.push_back ({ f.getFileName(), f.getFileExtension().substring (1).toUpperCase(), sampleColour, {}, f });
+        }
+    }
 
     list.updateContent();
     list.repaint();
 }
 
+void PluginBrowserComponent::chooseSampleFolder()
+{
+    chooser = std::make_unique<juce::FileChooser> ("Cartella dei campioni", sampleFolder);
+    chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories,
+                          [this] (const juce::FileChooser& fc)
+    {
+        if (fc.getResult().isDirectory())
+        {
+            sampleFolder = fc.getResult();
+            auto settings = openSettings (engine);
+            settings->setValue (sampleFolderKey, sampleFolder.getFullPathName());
+            settings->saveIfNeeded();
+            rebuildRows();
+        }
+    });
+}
+
 int PluginBrowserComponent::getNumRows()
 {
-    return visibleItems.size();
+    return (int) rows.size();
 }
 
 void PluginBrowserComponent::paintListBoxItem (int row, juce::Graphics& g, int width, int height, bool selected)
 {
-    if (! juce::isPositiveAndBelow (row, visibleItems.size()))
+    if (! juce::isPositiveAndBelow (row, (int) rows.size()))
         return;
 
-    const auto& d = visibleItems.getReference (row);
+    const auto& item = rows[(size_t) row];
+    auto r = juce::Rectangle<int> (0, 0, width, height);
 
     if (selected)
-        g.fillAll (colours::selection);
+    {
+        g.setColour (colours::hover);
+        g.fillRoundedRectangle (r.toFloat().reduced (0.0f, 1.0f), metrics::radius);
+    }
 
-    auto r = juce::Rectangle<int> (0, 0, width, height).reduced (6, 0);
+    r.reduce (8, 0);
+    g.setColour (item.dot);
+    g.fillEllipse (r.removeFromLeft (6).withSizeKeepingCentre (6, 6).toFloat());
+    r.removeFromLeft (10);
 
     g.setColour (colours::textDim);
-    g.setFont (juce::FontOptions (11.0f));
-    g.drawText (d.pluginFormatName, r.removeFromRight (64), juce::Justification::centredRight);
+    g.setFont (fonts::mono (10.0f));
+    g.drawText (item.detail, r.removeFromRight (64), juce::Justification::centredRight, true);
 
-    g.setColour (d.isInstrument ? colours::accent : colours::text);
-    g.setFont (juce::FontOptions (13.0f));
-    g.drawText (d.name, r, juce::Justification::centredLeft, true);
+    g.setColour (colours::text);
+    g.setFont (fonts::ui (12.5f));
+    g.drawText (item.name, r, juce::Justification::centredLeft, true);
 }
 
 juce::String PluginBrowserComponent::getTooltipForRow (int row)
 {
-    if (! juce::isPositiveAndBelow (row, visibleItems.size()))
+    if (! juce::isPositiveAndBelow (row, (int) rows.size()))
         return {};
 
-    const auto& d = visibleItems.getReference (row);
-    return d.name + " - " + d.manufacturerName + " (" + d.pluginFormatName + ", " + d.category + ")";
+    const auto& item = rows[(size_t) row];
+
+    if (item.file != juce::File())
+        return item.file.getFullPathName() + "\nTrascinalo su uno slot per creare una clip";
+
+    const auto& d = item.device;
+    return d.name + " - " + d.manufacturerName + " (" + d.pluginFormatName + ")\nDoppio clic per aggiungerlo alla traccia";
+}
+
+juce::var PluginBrowserComponent::getDragSourceDescription (const juce::SparseSet<int>& selected)
+{
+    if (selected.isEmpty())
+        return {};
+
+    const int row = selected[0];
+
+    if (juce::isPositiveAndBelow (row, (int) rows.size()) && rows[(size_t) row].file != juce::File())
+        return "file:" + rows[(size_t) row].file.getFullPathName();
+
+    return {};
 }
 
 void PluginBrowserComponent::listBoxItemDoubleClicked (int row, const juce::MouseEvent&)
@@ -151,14 +309,13 @@ void PluginBrowserComponent::listBoxItemDoubleClicked (int row, const juce::Mous
 
 void PluginBrowserComponent::returnKeyPressed (int row)
 {
-    if (juce::isPositiveAndBelow (row, visibleItems.size()) && onPluginChosen)
-        onPluginChosen (visibleItems.getReference (row));
+    if (juce::isPositiveAndBelow (row, (int) rows.size()) && rows[(size_t) row].file == juce::File() && onPluginChosen)
+        onPluginChosen (rows[(size_t) row].device);
 }
 
 void PluginBrowserComponent::openPluginManager()
 {
     auto& pm = engine.getPluginManager();
-
     auto deadMansPedal = engine.getPropertyStorage().getAppPrefsFolder().getChildFile ("plugin-scan-in-corso.txt");
 
     auto content = std::make_unique<juce::PluginListComponent> (pm.pluginFormatManager, pm.knownPluginList,
