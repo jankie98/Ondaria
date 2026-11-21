@@ -144,6 +144,19 @@ namespace icons
         return { p, false };
     }
 
+    Icon capture()
+    {
+        // Freccia che torna indietro attorno a un punto: "prendi quello che e' appena passato"
+        juce::Path p;
+        p.addCentredArc (0.5f, 0.5f, 0.34f, 0.34f, 0.0f, -2.2f, 2.2f, true);
+        const juce::Point<float> tip (0.5f + 0.34f * std::sin (-2.2f), 0.5f - 0.34f * std::cos (-2.2f));
+        p.startNewSubPath (tip.translated (-0.02f, -0.17f));
+        p.lineTo (tip);
+        p.lineTo (tip.translated (0.17f, -0.02f));
+        p.addEllipse (0.44f, 0.44f, 0.12f, 0.12f);
+        return { p, false };
+    }
+
     Icon loop()
     {
         juce::Path p;

@@ -98,12 +98,17 @@ public:
     /** Chiamata quando una registrazione in uno slot e' diventata una clip. */
     std::function<void (tracktion::Clip&)> onSlotRecorded;
 
+    /** Fa partire una clip della session come se fosse partita al beat (monotono) clipZero:
+        suona subito dal punto giusto del suo loop, in fase con il resto. */
+    void launchInPhase (tracktion::Clip&, tracktion::MonotonicBeat clipZero);
+
 private:
     struct PendingAlign
     {
         tracktion::EditItemID clipID;
         tracktion::MonotonicBeat beat;
         int ticksLeft;
+        tracktion::BeatDuration wrap {};   // lunghezza del loop: il ritardo si conta modulo questa
     };
 
     void timerCallback() override;

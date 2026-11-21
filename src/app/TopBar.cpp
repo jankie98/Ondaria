@@ -41,6 +41,9 @@ TopBar::TopBar (te::Engine& e) : engine (e)
     recordButton.setIconColour (colours::record.withAlpha (0.7f));
     recordButton.setActiveColour (colours::record);
     recordButton.onClick = [this] { if (onRecord) onRecord(); };
+    captureButton.setActiveColour (colours::accent);
+    captureButton.setClickingTogglesState (false);
+    captureButton.onClick = [this] { if (onCapture) onCapture(); };
 
     loopButton.setClickingTogglesState (false);
     loopButton.onClick = [this]
@@ -77,7 +80,7 @@ TopBar::TopBar (te::Engine& e) : engine (e)
     paletteButton.onClick = [this] { if (onShowCommandPalette) onShowCommandPalette(); };
 
     for (auto* c : std::initializer_list<juce::Component*> { &menuButton, &undoButton, &redoButton, &playButton, &stopButton,
-                                                             &recordButton, &loopButton, &metronomeButton, &tempo,
+                                                             &recordButton, &captureButton, &loopButton, &metronomeButton, &tempo,
                                                              &timeSigButton, &quantisationButton, &paletteButton })
         addAndMakeVisible (c);
 
@@ -113,6 +116,8 @@ void TopBar::timerCallback()
 
         playButton.setToggleState (t.isPlaying(), juce::dontSendNotification);
         recordButton.setToggleState (isRecording != nullptr && isRecording(), juce::dontSendNotification);
+        // Si accende quando c'e' qualcosa di appena suonato da catturare
+        captureButton.setToggleState (canCapture != nullptr && canCapture(), juce::dontSendNotification);
         loopButton.setToggleState (t.looping.get(), juce::dontSendNotification);
         metronomeButton.setToggleState (edit->clickTrackEnabled.get(), juce::dontSendNotification);
         undoButton.setEnabled (edit->getUndoManager().canUndo());
@@ -255,10 +260,10 @@ void TopBar::resized()
     paletteButton.setButtonText (paletteButton.getWidth() > 240 ? "Cerca azioni, device, plugin" : "Cerca");
 
     // Gruppo centrale: trasporto, posizione, tempo, metro, quantizzazione
-    const int groupWidth = 5 * 34 + 12 + 104 + 112 + 6 + 52 + 6 + 96;
+    const int groupWidth = 6 * 34 + 12 + 104 + 112 + 6 + 52 + 6 + 96;
     auto group = r.withSizeKeepingCentre (juce::jmin (groupWidth, r.getWidth()), r.getHeight());
 
-    for (auto* b : { &playButton, &stopButton, &recordButton, &loopButton, &metronomeButton })
+    for (auto* b : { &playButton, &stopButton, &recordButton, &captureButton, &loopButton, &metronomeButton })
         b->setBounds (group.removeFromLeft (34));
 
     group.removeFromLeft (12 + 104);

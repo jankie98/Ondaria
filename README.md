@@ -34,6 +34,11 @@ Il progetto è un'implementazione originale (codice, nome e grafica) e non conti
   - La traccia selezionata con ingresso MIDI è armata in automatico (cerchio più tenue): la tastiera la suona e la registra subito.
   - F9 o il pulsante rosso registra nell'arrangement sulle tracce armate.
   - Session: sulle tracce armate gli slot vuoti mostrano un cerchio. Cliccalo per registrare dal prossimo punto di quantizzazione; cliccalo di nuovo per fermarti a tempo: la clip parte subito in loop.
+- **Cattura retroattiva:** Sonora ascolta sempre gli ingressi, anche senza registrare (MIDI degli ultimi minuti, audio dell'ultimo minuto). Il pulsante con la freccia accanto alla registrazione si accende quando hai suonato qualcosa su una traccia armata. Premilo (o Ctrl+Shift+C) e l'ultima idea suonata diventa una clip:
+  - se il brano andava, la clip è allineata alle battute dove l'hai suonata; nella session parte subito in loop, in fase con il resto;
+  - a trasporto fermo diventa un loop nuovo al tempo del progetto, lungo 1, 2, 4... battute;
+  - nella session va nel primo slot libero della traccia, nell'arrangement sulla linea del tempo;
+  - funziona con il MIDI (anche dalla tastiera su schermo) e con l'audio: la parte prima dell'ultima pausa lunga resta fuori.
 - **Piano roll:** clic per scrivere una nota (trascina per decidere la durata), trascina per spostare o allungare, doppio clic per cancellare; velocity in basso, griglia da 1/4 a 1/32 e terzine, quantizzazione, frecce per trasporre (Shift per l'ottava).
 - **Mixer per traccia:** volume, pan, mute, solo e meter; volume e meter del master.
 - **Barra superiore:** trasporto, posizione, tempo (trascina o doppio clic per scriverlo), metro, quantizzazione del lancio, loop, metronomo, undo/redo.
@@ -57,6 +62,7 @@ Il progetto è un'implementazione originale (codice, nome e grafica) e non conti
 | Ctrl+N, Ctrl+O, Ctrl+S, Ctrl+Shift+S | Nuovo, apri, salva, salva con nome |
 | Ctrl+F | Cerca nel browser |
 | F9 | Registra nell'arrangement |
+| Ctrl+Shift+C | Cattura quello che hai appena suonato |
 | Ctrl+D | Duplica la clip (arrangement) |
 | Canc | Elimina la clip o le note selezionate |
 

@@ -32,8 +32,8 @@ public:
     std::function<void()> onShowMenu, onShowCommandPalette;
 
     /** Trasporto: li gestisce chi possiede il registratore, che deve chiudere le registrazioni. */
-    std::function<void()> onTogglePlay, onStop, onRecord;
-    std::function<bool()> isRecording;
+    std::function<void()> onTogglePlay, onStop, onRecord, onCapture;
+    std::function<bool()> isRecording, canCapture;
 
     void paint (juce::Graphics&) override;
     void paintOverChildren (juce::Graphics&) override;
@@ -52,6 +52,7 @@ private:
     IconButton undoButton { "Annulla (Ctrl+Z)", icons::undo() }, redoButton { "Ripeti (Ctrl+Shift+Z)", icons::redo() };
     IconButton playButton { "Riproduci (Spazio)", icons::play() }, stopButton { "Stop", icons::stop() },
                recordButton { "Registra nell'arrangement (F9)", icons::record() },
+               captureButton { "Cattura quello che hai appena suonato (Ctrl+Shift+C)", icons::capture() },
                loopButton { "Loop", icons::loop() }, metronomeButton { "Metronomo", icons::metronome() };
     DragNumber tempo { 20.0, 999.0, 0.01, 2, "BPM" };
     FlatButton timeSigButton { "4/4", 13.0f }, quantisationButton { "1 battuta", 12.0f };
