@@ -99,7 +99,7 @@ void Switch::paint (juce::Graphics& g)
 
     const float knob = 14.0f;
     const float x = on ? track.getRight() - knob - 2.0f : track.getX() + 2.0f;
-    g.setColour (on ? colours::background : colours::textMid);
+    g.setColour (on ? colours::ink : colours::textMid);
     g.fillEllipse (x, track.getCentreY() - knob / 2.0f, knob, knob);
 
     r.removeFromLeft (10.0f);
@@ -198,7 +198,7 @@ ExportPanel::ExportPanel()
     };
 
     exportButton.setBaseColour (colours::accent);
-    exportButton.setOnColours (colours::accent.brighter (0.2f), colours::background);
+    exportButton.setOnColours (colours::accent.brighter (0.2f), colours::ink);
     exportButton.setToggleState (true, juce::dontSendNotification);
     exportButton.onClick = [this] { startExport(); };
 

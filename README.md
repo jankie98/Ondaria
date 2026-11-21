@@ -57,6 +57,11 @@ Il progetto è un'implementazione originale (codice, nome e grafica) e non conti
 - **Export (Ctrl+Shift+R):** il brano intero o solo il loop diventa un file WAV (16, 24 o 32 bit float), FLAC, MP3 (192-320 kb/s) o Ogg Vorbis, a 44.1, 48 o 96 kHz. Con "Stem" esce un file per ogni traccia con clip, numerato e allineato all'inizio del brano, pronto da importare altrove. Si può normalizzare il picco a -0.3 dB e lasciar finire riverberi e delay oltre la fine. Il render gira in sottofondo con la sua barra di avanzamento. L'MP3 usa la libreria LAME del sistema: su Arch `pacman -S lame`, su Windows `libmp3lame.dll` accanto al programma.
 - **Freeze e appiattimento:** dal menu della traccia (clic destro sull'intestazione) o dalla palette, "Congela traccia" calcola una volta la traccia con i suoi device in un file, e da lì in poi suona quello: synth ed effetti pesanti smettono di usare la CPU. Fader, pan e quello che sta dopo il fader restano vivi. Una traccia congelata ha un fiocco nell'intestazione e un velo sulle clip, che restano visibili ma non si modificano (né note né device) finché non la scongeli. Il freeze resta anche chiudendo e riaprendo il progetto. "Appiattisci" fa un passo in più: sostituisce clip e device con una clip audio del risultato (in `Appiattite/` accanto al progetto), e Ctrl+Z torna indietro.
 - **Tastiera MIDI su schermo** per suonare gli strumenti anche senza controller.
+- **Registrazione che si vede mentre suoni:** durante la registrazione la clip rossa mostra subito la forma d'onda dell'audio in arrivo, o le note MIDI che stai suonando (quelle tenute si allungano in tempo reale), sia nell'arrangement sia negli slot della session view.
+- **Zoom che cambia il dettaglio:** con la griglia "auto" la quantizzazione segue lo zoom (da gruppi di battute fino a 1/32) e il pulsante mostra quella in uso. Il righello aggiunge i movimenti ("3.2") quando c'è spazio; le clip molto strette diventano blocchi di colore e, zoomando, le note mostrano la velocity.
+- **Barra informazioni:** passando sopra clip, slot, tracce e pulsanti, la barra in basso spiega cosa fa quell'elemento e con quali tasti (come la Info View di altri DAW). I pulsanti hanno anche il tooltip.
+- **Tema chiaro o scuro e scala dell'interfaccia:** dal menu principale o dalla palette. La scala (85-200%) serve sugli schermi HiDPI; tema e scala vengono ricordati.
+- **Modalità performance (F11):** per suonare dal vivo nasconde browser e pannello dettaglio, ingrandisce slot e nomi delle clip, spegne il lampeggio a tempo e passa a schermo intero. F11 o Esc per uscire.
 
 ### Scorciatoie
 
@@ -70,6 +75,7 @@ Il progetto è un'implementazione originale (codice, nome e grafica) e non conti
 | Ctrl+N, Ctrl+O, Ctrl+S, Ctrl+Shift+S | Nuovo, apri, salva, salva con nome |
 | Ctrl+F | Cerca nel browser |
 | F9 | Registra nell'arrangement |
+| F11 | Modalità performance (Esc per uscire) |
 | Ctrl+Shift+C | Cattura quello che hai appena suonato |
 | Ctrl+Shift+R | Esporta audio (mix o stem) |
 | Ctrl+D | Duplica la clip (arrangement) |

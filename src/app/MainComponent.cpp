@@ -7,6 +7,7 @@
 #include "MainComponent.h"
 #include "Animation.h"
 #include "FreezeUI.h"
+#include "Settings.h"
 #include "Theme.h"
 #include "session/Session.h"
 
@@ -96,14 +97,8 @@ MainComponent::MainComponent (te::Engine& e)
 
     keyboard.setAvailableRange (24, 108);
     keyboard.setLowestVisibleKey (48);
-    keyboard.setColour (juce::MidiKeyboardComponent::whiteNoteColourId, colours::text);
-    keyboard.setColour (juce::MidiKeyboardComponent::blackNoteColourId, colours::panel);
-    keyboard.setColour (juce::MidiKeyboardComponent::keySeparatorLineColourId, colours::textDim);
-    keyboard.setColour (juce::MidiKeyboardComponent::keyDownOverlayColourId, colours::accent);
-    keyboard.setColour (juce::MidiKeyboardComponent::mouseOverKeyOverlayColourId, colours::accent.withAlpha (0.3f));
+    // I colori dei tasti vengono dal LookAndFeel, cosi' seguono il tema
     keyboard.setColour (juce::MidiKeyboardComponent::shadowColourId, juce::Colours::transparentBlack);
-    keyboard.setColour (juce::MidiKeyboardComponent::upDownButtonBackgroundColourId, colours::panel);
-    keyboard.setColour (juce::MidiKeyboardComponent::upDownButtonArrowColourId, colours::textMid);
     keyboardState.addListener (this);
 
     for (auto* c : std::initializer_list<juce::Component*> { &topBar, &browser, &sessionView, &deviceChain,
@@ -139,7 +134,7 @@ MainComponent::MainComponent (te::Engine& e)
 
     setSize (1440, 900);
     setWantsKeyboardFocus (true);
-    startTimerHz (4);
+    startTimerHz (8);
 }
 
 MainComponent::~MainComponent()
@@ -308,32 +303,35 @@ void MainComponent::paint (juce::Graphics& g)
 {
     g.fillAll (colours::background);
 
-    // Intestazione del pannello dettaglio
-    auto detailRect = getLocalBounds().withTrimmedBottom (statusBarHeight).removeFromBottom (getDetailHeight())
-                                  .withTrimmedLeft (metrics::browserWidth);
-    g.setColour (colours::sidebar);
-    g.fillRect (detailRect);
-    g.setColour (colours::divider);
-    g.fillRect (detailRect.removeFromTop (1));
-
-    auto header = detailRect.removeFromTop (detailHeaderHeight).reduced (14, 0);
-
-    if (auto t = sessionView.getSelectedTrack())
+    // Intestazione del pannello dettaglio (nascosto in modalita' performance)
+    if (getDetailHeight() > 0)
     {
-        g.setColour (t->getColour());
-        g.fillRoundedRectangle (header.removeFromLeft (10).withSizeKeepingCentre (10, 10).toFloat(), 3.0f);
-        header.removeFromLeft (10);
-        g.setColour (colours::text);
-        g.setFont (fonts::ui (13.0f, fonts::Weight::semibold));
-        const auto name = t->getName();
-        const int w = (int) juce::GlyphArrangement::getStringWidth (fonts::ui (13.0f, fonts::Weight::semibold), name) + 12;
-        g.drawText (name, header.removeFromLeft (w), juce::Justification::centredLeft);
+        auto detailRect = getLocalBounds().withTrimmedBottom (statusBarHeight).removeFromBottom (getDetailHeight())
+                                      .withTrimmedLeft (browserWidth());
+        g.setColour (colours::sidebar);
+        g.fillRect (detailRect);
+        g.setColour (colours::divider);
+        g.fillRect (detailRect.removeFromTop (1));
+
+        auto header = detailRect.removeFromTop (detailHeaderHeight).reduced (14, 0);
+
+        if (auto t = sessionView.getSelectedTrack())
+        {
+            g.setColour (t->getColour());
+            g.fillRoundedRectangle (header.removeFromLeft (10).withSizeKeepingCentre (10, 10).toFloat(), 3.0f);
+            header.removeFromLeft (10);
+            g.setColour (colours::text);
+            g.setFont (fonts::ui (13.0f, fonts::Weight::semibold));
+            const auto name = t->getName();
+            const int w = (int) juce::GlyphArrangement::getStringWidth (fonts::ui (13.0f, fonts::Weight::semibold), name) + 12;
+            g.drawText (name, header.removeFromLeft (w), juce::Justification::centredLeft);
     }
 
     // Contenitore delle schede Device / Clip
     auto tabs = devicesTab.getBounds().getUnion (clipTab.getBounds()).expanded (3);
     g.setColour (colours::panel);
     g.fillRoundedRectangle (tabs.toFloat(), 8.0f);
+    }
 
     // Barra di stato
     auto bar = getLocalBounds().removeFromBottom (statusBarHeight);
@@ -352,9 +350,25 @@ void MainComponent::paint (juce::Graphics& g)
         g.drawText (project, bar.removeFromRight (320), juce::Justification::centredRight, true);
     }
 
-    g.setColour (colours::textMid);
     g.setFont (fonts::ui (11.5f));
-    g.drawText (statusText, bar, juce::Justification::centredLeft, true);
+
+    if (statusText.isNotEmpty())
+    {
+        g.setColour (colours::textMid);
+        g.drawText (statusText, bar, juce::Justification::centredLeft, true);
+    }
+    else if (hintText.isNotEmpty())
+    {
+        // "i" cerchiata davanti al suggerimento
+        auto icon = bar.removeFromLeft (18).toFloat().withSizeKeepingCentre (13.0f, 13.0f);
+        g.setColour (colours::textDim);
+        g.drawEllipse (icon.reduced (0.5f), 1.0f);
+        g.setFont (fonts::ui (9.5f, fonts::Weight::semibold));
+        g.drawText ("i", icon, juce::Justification::centred);
+        bar.removeFromLeft (4);
+        g.setFont (fonts::ui (11.5f));
+        g.drawText (hintText, bar, juce::Justification::centredLeft, true);
+    }
 }
 
 void MainComponent::resized()
@@ -365,7 +379,7 @@ void MainComponent::resized()
 
     topBar.setBounds (r.removeFromTop (metrics::topBarHeight));
     r.removeFromBottom (statusBarHeight);
-    browser.setBounds (r.removeFromLeft (metrics::browserWidth));
+    browser.setBounds (r.removeFromLeft (browserWidth()));
 
     auto detailArea = r.removeFromBottom (getDetailHeight());
     auto header = detailArea.removeFromTop (detailHeaderHeight).reduced (14, 6);
@@ -407,8 +421,16 @@ void MainComponent::setView (TopBar::View v)
         arrangement.grabKeyboardFocus();
 }
 
+int MainComponent::browserWidth() const
+{
+    return performance::enabled ? 0 : metrics::browserWidth;
+}
+
 int MainComponent::targetDetailHeight() const
 {
+    if (performance::enabled)
+        return 0;
+
     // Il piano roll ha bisogno di piu' spazio della catena di device.
     return metrics::detailHeight + (detail == Detail::clip ? juce::jmax (0, getHeight() / 5) : 0);
 }
@@ -538,6 +560,9 @@ void MainComponent::timerCallback()
     if (statusText.isNotEmpty() && juce::Time::getMillisecondCounter() - statusTime > 6000)
         statusText.clear();
 
+    // Barra informazioni: cosa si puo' fare dove sta il mouse
+    hintText = hintUnderMouse (*this);
+
     repaint (getLocalBounds().removeFromBottom (statusBarHeight));
 }
 
@@ -551,6 +576,8 @@ bool MainComponent::keyPressed (const juce::KeyPress& key)
 
     if (key == juce::KeyPress::spaceKey && ! cmd)      { togglePlay(); return true; }
     if (key == juce::KeyPress::F9Key)                   { toggleRecord(); return true; }
+    if (key == juce::KeyPress::F11Key)                  { togglePerformance(); return true; }
+    if (key == juce::KeyPress::escapeKey && performance::enabled) { togglePerformance(); return true; }
     if (cmd && mods.isShiftDown() && is ('c'))          { captureNow(); return true; }
     if (cmd && mods.isShiftDown() && is ('r'))          { showExport(); return true; }
     if (key == juce::KeyPress::tabKey && ! cmd)
@@ -584,6 +611,73 @@ bool MainComponent::keyPressed (const juce::KeyPress& key)
 }
 
 //==============================================================================
+void MainComponent::toggleTheme()
+{
+    const auto next = theme::current() == theme::Kind::dark ? theme::Kind::light : theme::Kind::dark;
+    theme::apply (next);
+
+    if (auto settings = openUiSettings (engine))
+        theme::save (*settings, next);
+
+    status ("Tema " + theme::name (next));
+}
+
+void MainComponent::togglePerformance()
+{
+    performance::enabled = ! performance::enabled;
+
+    // Sul palco servono solo le clip: niente browser, niente pannello dettaglio, schermo intero.
+    browser.setVisible (! performance::enabled);
+    detailAnimating = false;
+
+    if (performance::enabled)
+        setView (TopBar::View::session);
+
+    if (auto window = findParentComponentOfClass<juce::ResizableWindow>())
+    {
+        if (performance::enabled)
+        {
+            wasFullScreenBeforePerformance = window->isFullScreen();
+            window->setFullScreen (true);
+        }
+        else if (! wasFullScreenBeforePerformance)
+        {
+            window->setFullScreen (false);
+        }
+    }
+
+    resized();
+    sessionView.resized();
+    repaint();
+
+    status (performance::enabled ? juce::String::fromUTF8 ("Modalit\xc3\xa0 performance: clip grandi e niente distrazioni (F11 o Esc per uscire)")
+                                 : juce::String::fromUTF8 ("Modalit\xc3\xa0 performance spenta"));
+}
+
+juce::PopupMenu MainComponent::scaleMenu()
+{
+    juce::PopupMenu m;
+    const auto current = juce::Desktop::getInstance().getGlobalScaleFactor();
+
+    for (float s : { 0.85f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f })
+        m.addItem (juce::String (juce::roundToInt (s * 100.0f)) + "%", true, std::abs (current - s) < 0.01f, [this, s]
+        {
+            setUiScale (s);
+        });
+
+    return m;
+}
+
+void MainComponent::setUiScale (float s)
+{
+    applyUiScale (s);
+
+    if (auto settings = openUiSettings (engine))
+        settings->setValue ("scala", (double) s);
+
+    status ("Scala dell'interfaccia: " + juce::String (juce::roundToInt (s * 100.0f)) + "%");
+}
+
 void MainComponent::showMainMenu()
 {
     juce::PopupMenu m;
@@ -595,6 +689,9 @@ void MainComponent::showMainMenu()
     m.addItem ("Esporta audio...", [this] { showExport(); });
     m.addSeparator();
     m.addItem ("Impostazioni audio e MIDI...", [this] { showAudioSettings(); });
+    m.addItem ("Tema chiaro", true, theme::current() == theme::Kind::light, [this] { toggleTheme(); });
+    m.addSubMenu ("Scala interfaccia", scaleMenu());
+    m.addItem (juce::String::fromUTF8 ("Modalit\xc3\xa0 performance (F11)"), true, performance::enabled, [this] { togglePerformance(); });
     m.addItem ("Gestisci e scansiona plugin...", [this] { browser.openPluginManager(); });
     m.addSeparator();
     m.addItem ("Esci", [] { juce::JUCEApplication::getInstance()->systemRequestedQuit(); });
@@ -613,6 +710,11 @@ void MainComponent::showCommandPalette()
     add ("Riproduci / ferma", "Spazio", [this] { togglePlay(); });
     add ("Registra nell'arrangement", "F9", [this] { toggleRecord(); });
     add ("Cattura quello che hai appena suonato", "Ctrl+Shift+C", [this] { captureNow(); });
+    add ("Tema chiaro o scuro", {}, [this] { toggleTheme(); });
+    add (juce::String::fromUTF8 ("Modalit\xc3\xa0 performance (clip grandi, schermo intero)"), "F11", [this] { togglePerformance(); });
+
+    for (float s : { 1.0f, 1.25f, 1.5f, 2.0f })
+        add ("Scala interfaccia " + juce::String (juce::roundToInt (s * 100.0f)) + "%", {}, [this, s] { setUiScale (s); });
     add ("Scrivi automazioni (attiva o disattiva)", {}, [this]
     {
         if (edit != nullptr)

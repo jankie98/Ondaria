@@ -19,7 +19,6 @@ namespace sonora
 
 namespace
 {
-    constexpr int columnWidth = 132;
     constexpr int sceneColumnWidth = 120;
     constexpr int columnGap = 6;
     constexpr int headerHeight = 30;
@@ -102,6 +101,7 @@ namespace
 
 //==============================================================================
 class SessionView::SlotComponent final : public juce::Component,
+                                         public HintProvider,
                                          public juce::FileDragAndDropTarget,
                                          public juce::DragAndDropTarget
 {
@@ -112,6 +112,34 @@ public:
     }
 
     te::ClipSlot* getSlot() const       { return session::getSlot (track, sceneIndex); }
+
+    juce::String getHintAt (juce::Point<int> pos) override
+    {
+        auto slot = getSlot();
+
+        if (slot == nullptr)
+            return {};
+
+        if (freeze::isFrozen (track))
+            return freezeui::frozenNotice (track);
+
+        const bool inLaunch = pos.x < launchZone;
+        const auto dot = juce::String::fromUTF8 (" \xc2\xb7 ");
+
+        if (view.recorder != nullptr && view.recorder->getSlotRecordState (*slot) != recording::Recorder::SlotRecordState::none)
+            return "Registrazione in corso: clic sul cerchio per fermarla a tempo";
+
+        if (slot->getClip() != nullptr)
+            return inLaunch ? "Lancia la clip (Invio)"
+                            : "Clip: doppio clic per lanciarla" + dot + "le note sono nel pannello sotto" + dot
+                                + "Canc elimina" + dot + "clic destro per il menu";
+
+        if (view.recorder != nullptr && view.recorder->canRecordInto (*slot))
+            return inLaunch ? "Registra in questo slot, a tempo" : "Slot vuoto: il cerchio registra" + dot + "doppio clic per una clip MIDI";
+
+        return inLaunch ? "Ferma la traccia"
+                        : "Slot vuoto: doppio clic per una clip MIDI" + dot + "trascina qui un campione" + dot + "frecce per muoverti";
+    }
 
     void paint (juce::Graphics& g) override
     {
@@ -144,6 +172,19 @@ public:
 
             g.setColour (colours::record.withAlpha (on ? 1.0f : 0.35f));
             g.fillEllipse (r.removeFromLeft ((float) launchZone).withSizeKeepingCentre (10.0f, 10.0f));
+
+            // Quello che sta arrivando, compresso nello slot dall'inizio a adesso
+            if (auto take = view.recorder->getLiveTake (track))
+            {
+                const auto now = track.edit.getTransport().getPosition();
+                const auto body = r.reduced (2.0f, 4.0f);
+                const auto length = std::max (0.25, (now - take->start).inSeconds());
+
+                recordingui::drawLiveTake (g, *take, body, now, [body, take, length] (te::TimePosition time)
+                {
+                    return body.getX() + body.getWidth() * (float) ((time - take->start).inSeconds() / length);
+                }, colours::record.brighter (0.2f).withAlpha (0.7f));
+            }
 
             g.setColour (colours::text);
             g.setFont (fonts::ui (11.5f, fonts::Weight::medium));
@@ -190,15 +231,18 @@ public:
 
             if (auto progress = session::getPlayProgress (*clip))
             {
-                // Pulsazione morbida a ogni beat
-                const double beats = *progress * clip->getLengthInBeats().inBeats();
-                const float phase = (float) (beats - std::floor (beats));
-                const float pulse = (1.0f - phase) * (1.0f - phase);
+                // Pulsazione morbida a ogni beat (non in modalita' performance: distrae)
+                if (! performance::enabled)
+                {
+                    const double beats = *progress * clip->getLengthInBeats().inBeats();
+                    const float phase = (float) (beats - std::floor (beats));
+                    const float pulse = (1.0f - phase) * (1.0f - phase);
 
-                g.setColour (juce::Colours::white.withAlpha (0.10f * pulse));
-                g.fillRoundedRectangle (r, metrics::radius);
+                    g.setColour (juce::Colours::white.withAlpha (0.10f * pulse));
+                    g.fillRoundedRectangle (r, metrics::radius);
+                }
 
-                g.setColour (colours::background.withAlpha (0.35f));
+                g.setColour (colours::ink.withAlpha (0.35f));
                 g.fillRect (r.withTop (r.getBottom() - 3.0f).withWidth (r.getWidth() * *progress));
             }
 
@@ -212,20 +256,20 @@ public:
             }
 
             auto launch = r.removeFromLeft ((float) launchZone).withSizeKeepingCentre (9.0f, 10.0f);
-            auto ink = colours::background;
+            auto ink = colours::ink;
 
             if (state == session::SlotState::playQueued || state == session::SlotState::stopQueued)
             {
                 // Lampeggia mentre attende il punto di quantizzazione.
                 const bool on = (juce::Time::getMillisecondCounter() / 250) % 2 == 0;
-                ink = on ? colours::background : colours::background.withAlpha (0.35f);
+                ink = on ? colours::ink : colours::ink.withAlpha (0.35f);
             }
 
             icons::draw (g, state == session::SlotState::stopQueued ? icons::stop() : icons::play(),
                          launch, playing || state == session::SlotState::playQueued ? ink : ink.withAlpha (0.55f));
 
-            g.setColour (colours::background);
-            g.setFont (fonts::ui (11.5f, fonts::Weight::medium));
+            g.setColour (colours::ink);
+            g.setFont (fonts::ui (performance::enabled ? 14.5f : 11.5f, fonts::Weight::medium));
             g.drawText (clip->getName(), r.reduced (2.0f, 0.0f), juce::Justification::centredLeft, true);
         }
 
@@ -427,7 +471,8 @@ private:
 };
 
 //==============================================================================
-class SessionView::TrackColumn final : public juce::Component
+class SessionView::TrackColumn final : public juce::Component,
+                                       public HintProvider
 {
 public:
     TrackColumn (SessionView& v, te::AudioTrack& t)
@@ -483,8 +528,8 @@ public:
 
         muteButton.setTooltip ("Silenzia la traccia");
         soloButton.setTooltip ("Ascolta solo questa traccia");
-        muteButton.setOnColours (colours::warning, colours::background);
-        soloButton.setOnColours (colours::accent, colours::background);
+        muteButton.setOnColours (colours::warning, colours::ink);
+        soloButton.setOnColours (colours::accent, colours::ink);
         muteButton.onClick = [this] { track->setMute (! track->isMuted (false)); refresh(); };
         soloButton.onClick = [this] { track->setSolo (! track->isSolo (false)); refresh(); };
 
@@ -501,7 +546,6 @@ public:
 
         dbLabel.setFont (fonts::mono (11.0f));
         dbLabel.setJustificationType (juce::Justification::centred);
-        dbLabel.setColour (juce::Label::textColourId, colours::textMid);
         dbLabel.setInterceptsMouseClicks (false, false);
         addAndMakeVisible (dbLabel);
 
@@ -523,6 +567,8 @@ public:
     /** Allinea i controlli al modello (undo, automazioni, altre viste). */
     void refresh()
     {
+        dbLabel.setColour (juce::Label::textColourId, colours::textMid);   // segue il tema
+
         if (auto vp = track->getVolumePlugin())
         {
             if (! volume.isMouseButtonDown())
@@ -623,7 +669,7 @@ public:
 
         for (auto* s : slots)
         {
-            s->setBounds (r.removeFromTop (metrics::slotHeight));
+            s->setBounds (r.removeFromTop (performance::slotHeight()));
             r.removeFromTop (metrics::gap);
         }
 
@@ -666,9 +712,17 @@ public:
             rename();
     }
 
+    juce::String getHintAt (juce::Point<int> pos) override
+    {
+        if (headerArea().contains (pos))
+            return juce::String::fromUTF8 ("Traccia: doppio clic per rinominarla \xc2\xb7 clic destro per colore, ingresso, congela");
+
+        return {};
+    }
+
     static int requiredHeight (int numScenes)
     {
-        return headerHeight + metrics::gap + numScenes * (metrics::slotHeight + metrics::gap)
+        return headerHeight + metrics::gap + numScenes * (performance::slotHeight() + metrics::gap)
                 + stopRowHeight + metrics::gap * 2 + mixerHeight;
     }
 
@@ -770,7 +824,6 @@ public:
         masterVolume.setRange (-60.0, 6.0, 0.1);
         masterVolume.setSkewFactorFromMidPoint (-12.0);
         masterVolume.setDoubleClickReturnValue (true, 0.0);
-        masterVolume.setColour (juce::Slider::trackColourId, colours::hover.brighter (0.15f));
         masterVolume.onDragStart = [this]
         {
             if (view.edit != nullptr)
@@ -788,7 +841,6 @@ public:
 
         dbLabel.setFont (fonts::mono (11.0f));
         dbLabel.setJustificationType (juce::Justification::centred);
-        dbLabel.setColour (juce::Label::textColourId, colours::textMid);
         addAndMakeVisible (dbLabel);
         addAndMakeVisible (meter);
     }
@@ -803,6 +855,10 @@ public:
         // Il misuratore del master vive nel contesto di riproduzione, che il motore
         // libera e ricrea (render del freeze, export): ci facciamo avvisare
         listenTo (view.edit);
+
+        // Colori impostati a mano: si riprendono qui, cosi' seguono il tema
+        dbLabel.setColour (juce::Label::textColourId, colours::textMid);
+        masterVolume.setColour (juce::Slider::trackColourId, colours::hover.brighter (0.15f));
 
         if (view.edit == nullptr)
             return;
@@ -907,7 +963,7 @@ public:
 private:
     juce::Rectangle<int> sceneArea (int index) const
     {
-        return { 0, headerHeight + metrics::gap + index * (metrics::slotHeight + metrics::gap), getWidth(), metrics::slotHeight };
+        return { 0, headerHeight + metrics::gap + index * (performance::slotHeight() + metrics::gap), getWidth(), performance::slotHeight() };
     }
 
     int sceneAt (juce::Point<int> p) const
@@ -1029,7 +1085,7 @@ public:
     void updateSize()
     {
         const int numScenes = view.edit != nullptr ? view.edit->getSceneList().getNumScenes() : 0;
-        const int w = padding * 2 + columns.size() * (columnWidth + columnGap) + 44 + columnGap + sceneColumnWidth;
+        const int w = padding * 2 + columns.size() * (performance::columnWidth() + columnGap) + 44 + columnGap + sceneColumnWidth;
         const int h = juce::jmax (view.viewport.getMaximumVisibleHeight(),
                                   padding * 2 + TrackColumn::requiredHeight (numScenes + 1));
         setSize (juce::jmax (w, view.viewport.getMaximumVisibleWidth()), h);
@@ -1061,7 +1117,7 @@ public:
 
         for (auto* c : columns)
         {
-            c->setBounds (r.removeFromLeft (columnWidth));
+            c->setBounds (r.removeFromLeft (performance::columnWidth()));
             r.removeFromLeft (columnGap);
         }
 

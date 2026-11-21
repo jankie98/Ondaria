@@ -5,6 +5,7 @@
 */
 
 #include "PluginBrowserComponent.h"
+#include "Settings.h"
 
 namespace te = tracktion;
 
@@ -31,13 +32,7 @@ namespace
 
     constexpr const char* sampleFolderKey = "cartellaCampioni";
 
-    /** Impostazioni dell'interfaccia di Ondaria, accanto a quelle del motore. */
-    std::unique_ptr<juce::PropertiesFile> openSettings (te::Engine& e)
-    {
-        juce::PropertiesFile::Options o;
-        return std::make_unique<juce::PropertiesFile> (e.getPropertyStorage().getAppPrefsFolder()
-                                                         .getChildFile ("sonora-interfaccia.xml"), o);
-    }
+    std::unique_ptr<juce::PropertiesFile> openSettings (te::Engine& e)    { return openUiSettings (e); }
 }
 
 PluginBrowserComponent::PluginBrowserComponent (te::Engine& e) : engine (e)
@@ -57,7 +52,7 @@ PluginBrowserComponent::PluginBrowserComponent (te::Engine& e) : engine (e)
     {
         auto* chip = chips.add (new FlatButton (label, 11.5f));
         chip->setBaseColour (colours::panelLight);
-        chip->setOnColours (colours::accent, colours::background);
+        chip->setOnColours (colours::accent, colours::ink);
         chip->onClick = [this, f = f] { setFilter (f); };
         addAndMakeVisible (chip);
     }
@@ -72,8 +67,8 @@ PluginBrowserComponent::PluginBrowserComponent (te::Engine& e) : engine (e)
 
     list.setModel (this);
     list.setRowHeight (28);
-    list.setColour (juce::ListBox::backgroundColourId, colours::sidebar);
     addAndMakeVisible (list);
+    lookAndFeelChanged();
 
     sampleFolder = juce::File (openSettings (engine)->getValue (sampleFolderKey));
 

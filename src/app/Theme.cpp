@@ -52,7 +52,105 @@ juce::Font fonts::mono (float height)
 }
 
 //==============================================================================
+//==============================================================================
+namespace
+{
+    theme::Kind currentTheme = theme::Kind::dark;
+
+    struct Palette
+    {
+        juce::uint32 background, sidebar, panel, panelLight, hover, divider, outline, emptySlot,
+                     text, textMid, textDim, accent, play, record, warning, selection;
+    };
+
+    constexpr Palette darkPalette  { 0xff141518, 0xff17181b, 0xff1c1d21, 0xff25272c, 0xff2e3036, 0xff202227, 0xff33363d, 0xff1a1b1f,
+                                     0xffe8e9ec, 0xffb4b8c0, 0xff8b8f98, 0xff7c9cff, 0xff4ade80, 0xfff87171, 0xfff2a93b, 0xff2a2c32 };
+
+    // Chiaro: carta calda e grigi freddi, accenti un po' piu' scuri per restare leggibili
+    constexpr Palette lightPalette { 0xfff3f4f6, 0xffeceef1, 0xffffffff, 0xfff6f7f9, 0xffe3e6eb, 0xffe2e4e8, 0xffcfd3da, 0xffe9ebef,
+                                     0xff1b1d22, 0xff464b55, 0xff767b86, 0xff4f6ef7, 0xff16a34a, 0xffdc2626, 0xffd97706, 0xffdde4ff };
+}
+
+theme::Kind theme::current()        { return currentTheme; }
+
+juce::String theme::name (Kind k)   { return k == Kind::light ? "chiaro" : "scuro"; }
+
+void theme::apply (Kind k)
+{
+    currentTheme = k;
+    const auto& p = k == Kind::light ? lightPalette : darkPalette;
+
+    colours::background = juce::Colour (p.background);
+    colours::sidebar    = juce::Colour (p.sidebar);
+    colours::panel      = juce::Colour (p.panel);
+    colours::panelLight = juce::Colour (p.panelLight);
+    colours::hover      = juce::Colour (p.hover);
+    colours::divider    = juce::Colour (p.divider);
+    colours::outline    = juce::Colour (p.outline);
+    colours::emptySlot  = juce::Colour (p.emptySlot);
+    colours::text       = juce::Colour (p.text);
+    colours::textMid    = juce::Colour (p.textMid);
+    colours::textDim    = juce::Colour (p.textDim);
+    colours::accent     = juce::Colour (p.accent);
+    colours::play       = juce::Colour (p.play);
+    colours::record     = juce::Colour (p.record);
+    colours::warning    = juce::Colour (p.warning);
+    colours::selection  = juce::Colour (p.selection);
+
+    if (auto lf = dynamic_cast<SonoraLookAndFeel*> (&juce::LookAndFeel::getDefaultLookAndFeel()))
+        lf->refreshColours();
+
+    auto& desktop = juce::Desktop::getInstance();
+
+    for (int i = 0; i < desktop.getNumComponents(); ++i)
+    {
+        if (auto c = desktop.getComponent (i))
+        {
+            if (auto w = dynamic_cast<juce::ResizableWindow*> (c))
+                w->setBackgroundColour (colours::background);
+
+            c->sendLookAndFeelChange();
+            c->repaint();
+        }
+    }
+}
+
+juce::Colour theme::follow (juce::Colour c)
+{
+    const auto opaque = c.withAlpha ((juce::uint8) 255).getARGB();
+    const auto& now = currentTheme == Kind::light ? lightPalette : darkPalette;
+    constexpr size_t n = sizeof (Palette) / sizeof (juce::uint32);
+    const auto* nowEntries = reinterpret_cast<const juce::uint32*> (&now);
+
+    for (auto* p : { &darkPalette, &lightPalette })
+    {
+        const auto* entries = reinterpret_cast<const juce::uint32*> (p);
+
+        for (size_t i = 0; i < n; ++i)
+            if (entries[i] == opaque)
+                return juce::Colour (nowEntries[i]).withAlpha (c.getAlpha());
+    }
+
+    return c;
+}
+
+theme::Kind theme::load (juce::PropertySet& props)
+{
+    return props.getValue ("tema") == "chiaro" ? Kind::light : Kind::dark;
+}
+
+void theme::save (juce::PropertySet& props, Kind k)
+{
+    props.setValue ("tema", name (k));
+}
+
+//==============================================================================
 SonoraLookAndFeel::SonoraLookAndFeel()
+{
+    refreshColours();
+}
+
+void SonoraLookAndFeel::refreshColours()
 {
     setColourScheme ({ colours::background, colours::panel, colours::panelLight,
                        colours::outline, colours::text, colours::accent,
@@ -99,6 +197,14 @@ SonoraLookAndFeel::SonoraLookAndFeel()
     setColour (juce::TableHeaderComponent::backgroundColourId, colours::panel);
     setColour (juce::TableHeaderComponent::textColourId, colours::textMid);
     setColour (juce::TableHeaderComponent::outlineColourId, colours::divider);
+
+    setColour (juce::MidiKeyboardComponent::whiteNoteColourId, theme::current() == theme::Kind::light ? juce::Colour (0xfffbfbfc) : colours::text);
+    setColour (juce::MidiKeyboardComponent::blackNoteColourId, theme::current() == theme::Kind::light ? juce::Colour (0xff2a2c31) : colours::panel);
+    setColour (juce::MidiKeyboardComponent::keySeparatorLineColourId, colours::textDim);
+    setColour (juce::MidiKeyboardComponent::keyDownOverlayColourId, colours::accent);
+    setColour (juce::MidiKeyboardComponent::mouseOverKeyOverlayColourId, colours::accent.withAlpha (0.3f));
+    setColour (juce::MidiKeyboardComponent::upDownButtonBackgroundColourId, colours::panel);
+    setColour (juce::MidiKeyboardComponent::upDownButtonArrowColourId, colours::textMid);
 }
 
 juce::Typeface::Ptr SonoraLookAndFeel::getTypefaceForFont (const juce::Font& f)

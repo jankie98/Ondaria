@@ -125,7 +125,7 @@ namespace
 
         if (label.isNotEmpty())
         {
-            g.setColour (colours::background);
+            g.setColour (colours::ink);
             g.setFont (fonts::ui (8.5f, fonts::Weight::semibold));
             g.drawText (label, juce::Rectangle<float> (radius * 2.0f, radius * 2.0f).withCentre (p), juce::Justification::centred);
         }

@@ -7,29 +7,67 @@
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <juce_audio_utils/juce_audio_utils.h>
 
 namespace sonora
 {
 
-/** Palette del tema scuro: superfici neutre, il colore lo portano clip e stato. */
+/** Palette attiva: superfici neutre, il colore lo portano clip e stato.
+    I valori cambiano con theme::apply (scuro o chiaro): leggili al momento di
+    disegnare, non copiarli in membri. */
 namespace colours
 {
-    inline const juce::Colour background   { 0xff141518 };
-    inline const juce::Colour sidebar      { 0xff17181b };
-    inline const juce::Colour panel        { 0xff1c1d21 };
-    inline const juce::Colour panelLight   { 0xff25272c };
-    inline const juce::Colour hover        { 0xff2e3036 };
-    inline const juce::Colour divider      { 0xff202227 };
-    inline const juce::Colour outline      { 0xff33363d };
-    inline const juce::Colour emptySlot    { 0xff1a1b1f };
-    inline const juce::Colour text         { 0xffe8e9ec };
-    inline const juce::Colour textMid      { 0xffb4b8c0 };
-    inline const juce::Colour textDim      { 0xff8b8f98 };
-    inline const juce::Colour accent       { 0xff7c9cff };
-    inline const juce::Colour play         { 0xff4ade80 };
-    inline const juce::Colour record       { 0xfff87171 };
-    inline const juce::Colour warning      { 0xfff2a93b };
-    inline const juce::Colour selection    { 0xff2a2c32 };
+    inline juce::Colour background   { 0xff141518 };
+    inline juce::Colour sidebar      { 0xff17181b };
+    inline juce::Colour panel        { 0xff1c1d21 };
+    inline juce::Colour panelLight   { 0xff25272c };
+    inline juce::Colour hover        { 0xff2e3036 };
+    inline juce::Colour divider      { 0xff202227 };
+    inline juce::Colour outline      { 0xff33363d };
+    inline juce::Colour emptySlot    { 0xff1a1b1f };
+    inline juce::Colour text         { 0xffe8e9ec };
+    inline juce::Colour textMid      { 0xffb4b8c0 };
+    inline juce::Colour textDim      { 0xff8b8f98 };
+    inline juce::Colour accent       { 0xff7c9cff };
+    inline juce::Colour play         { 0xff4ade80 };
+    inline juce::Colour record       { 0xfff87171 };
+    inline juce::Colour warning      { 0xfff2a93b };
+    inline juce::Colour selection    { 0xff2a2c32 };
+
+    /** Testo e icone sopra un colore pieno (clip, pulsanti accesi): scuro in tutti i temi. */
+    inline juce::Colour ink          { 0xff121316 };
+}
+
+/** Temi dell'interfaccia. */
+namespace theme
+{
+    enum class Kind { dark, light };
+
+    Kind current();
+    juce::String name (Kind);
+
+    /** Cambia la palette, aggiorna il LookAndFeel e ridisegna tutte le finestre.
+        I componenti con colori impostati a mano li riprendono in lookAndFeelChanged. */
+    void apply (Kind);
+
+    /** Un colore preso dalla palette (anche di un altro tema) diventa il suo
+        corrispondente nella palette attiva, alpha compresa; gli altri restano uguali.
+        Per i colori salvati nei membri dei widget. */
+    juce::Colour follow (juce::Colour);
+
+    /** Tema salvato nelle impostazioni (scuro se mai scelto). */
+    Kind load (juce::PropertySet&);
+    void save (juce::PropertySet&, Kind);
+}
+
+/** Modalita' performance: per suonare dal vivo. Solo la session, slot piu' grandi
+    da centrare al volo, niente animazioni continue che non servono. */
+namespace performance
+{
+    inline bool enabled = false;
+
+    inline int slotHeight()     { return enabled ? 44 : 28; }
+    inline int columnWidth()    { return enabled ? 168 : 132; }
 }
 
 /** Misure ricorrenti, su una griglia da 4 px. */
@@ -56,6 +94,9 @@ class SonoraLookAndFeel final : public juce::LookAndFeel_V4
 {
 public:
     SonoraLookAndFeel();
+
+    /** Ricarica i colori dei widget dalla palette attiva. */
+    void refreshColours();
 
     juce::Typeface::Ptr getTypefaceForFont (const juce::Font&) override;
 

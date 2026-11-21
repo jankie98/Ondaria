@@ -122,6 +122,23 @@ struct ArrangementTests final : public juce::UnitTest
             if (c != nullptr)
                 expectWithinAbsoluteError (c->getStartBeat().inBeats(), 4.0, 1.0e-6);
         }
+
+        beginTest ("Griglia adattiva allo zoom");
+        {
+            // Zoom normale (24 px per beat): un beat; ingrandendo si infittisce
+            expectEquals (arr::adaptiveGridBeats (24.0, 4.0), 1.0);
+            expectEquals (arr::adaptiveGridBeats (60.0, 4.0), 0.25);
+            expectEquals (arr::adaptiveGridBeats (400.0, 4.0), 0.125);
+            // Allontanando: battute intere, poi gruppi di battute
+            expectEquals (arr::adaptiveGridBeats (6.0, 4.0), 4.0);
+            expectEquals (arr::adaptiveGridBeats (2.0, 4.0), 8.0);
+            expectEquals (arr::adaptiveGridBeats (2.0, 3.0), 12.0);
+
+            expectEquals (arr::gridName (0.25, 4.0), juce::String ("1/16"));
+            expectEquals (arr::gridName (1.0, 4.0), juce::String ("1/4"));
+            expectEquals (arr::gridName (4.0, 4.0), juce::String ("1 battuta"));
+            expectEquals (arr::gridName (16.0, 4.0), juce::String ("4 battute"));
+        }
     }
 };
 
