@@ -39,6 +39,10 @@ Il progetto è un'implementazione originale (codice, nome e grafica) e non conti
   - a trasporto fermo diventa un loop nuovo al tempo del progetto, lungo 1, 2, 4... battute;
   - nella session va nel primo slot libero della traccia, nell'arrangement sulla linea del tempo;
   - funziona con il MIDI (anche dalla tastiera su schermo) e con l'audio: la parte prima dell'ultima pausa lunga resta fuori.
+- **Automazioni:** volume, pan e qualsiasi parametro dei device cambiano nel tempo seguendo una curva.
+  - Nell'arrangement il pulsante con la spezzata nell'intestazione della traccia sceglie quali parametri mostrare: ognuno ha la sua corsia sotto la traccia (un pallino nel menu indica quelli che hanno già dei punti).
+  - Nella corsia: clic per aggiungere un punto e trascinarlo, doppio clic per toglierlo, Alt+trascina un tratto per curvarlo, Ctrl per non agganciarsi alla griglia. Col tasto destro si cancella tutto o si nasconde la corsia.
+  - Il pulsante con la spezzata nella barra superiore accende la scrittura: mentre il brano suona, i movimenti di manopole e fader diventano punti e la corsia si apre da sola. Da spento non si scrive mai niente per sbaglio.
 - **Piano roll:** clic per scrivere una nota (trascina per decidere la durata), trascina per spostare o allungare, doppio clic per cancellare; velocity in basso, griglia da 1/4 a 1/32 e terzine, quantizzazione, frecce per trasporre (Shift per l'ottava).
 - **Mixer per traccia:** volume, pan, mute, solo e meter; volume e meter del master.
 - **Barra superiore:** trasporto, posizione, tempo (trascina o doppio clic per scriverlo), metro, quantizzazione del lancio, loop, metronomo, undo/redo.

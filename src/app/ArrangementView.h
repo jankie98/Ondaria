@@ -24,6 +24,10 @@ namespace sonora
       destro per allungarla. Ctrl+D duplica, Canc elimina.
     - Trascina file audio o MIDI su una corsia per importarli.
     - Rotella: scorre le tracce. Shift+rotella: scorre il tempo. Ctrl+rotella: zoom.
+    - Corsie di automazione sotto le tracce: clic per aggiungere un punto e trascinarlo,
+      doppio clic per toglierlo, Alt+trascina un tratto per curvarlo, Ctrl per non
+      agganciarsi alla griglia. Il pulsante con la spezzata nell'intestazione sceglie
+      quali parametri mostrare.
 */
 class ArrangementView final : public juce::Component,
                               public juce::FileDragAndDropTarget,
@@ -61,7 +65,16 @@ public:
     void itemDropped (const SourceDetails&) override;
 
 private:
-    enum class Drag { none, move, resize, ruler, loop };
+    enum class Drag { none, move, resize, ruler, loop, point, curve };
+
+    /** Una corsia di automazione visibile sotto una traccia. */
+    struct AutomationLane
+    {
+        tracktion::AudioTrack* track = nullptr;
+        juce::String key;
+        tracktion::AutomatableParameter::Ptr param;   ///< nullptr se il device non c'e' piu'
+        juce::Rectangle<int> header, lane;
+    };
 
     void timerCallback() override;
     void showSnapMenu();
@@ -82,6 +95,21 @@ private:
     void drawClip (juce::Graphics&, tracktion::Clip&, juce::Rectangle<int>);
     tracktion::SmartThumbnail* getThumbnail (tracktion::WaveAudioClip&);
 
+    // Automazioni
+    int trackBlockHeight (const tracktion::AudioTrack&) const;
+    std::vector<AutomationLane> automationLanes (tracktion::AudioTrack&, int trackIndex) const;
+    std::optional<AutomationLane> automationLaneAt (juce::Point<int>) const;
+    int automationPointAt (const AutomationLane&, juce::Point<int>) const;
+    int xForTime (tracktion::TimePosition) const;
+    tracktion::TimePosition timeForX (int x, bool snapToGrid) const;
+    float yForValue (juce::Rectangle<int> lane, float normalised) const;
+    float valueForY (juce::Rectangle<int> lane, int y) const;
+    juce::Rectangle<int> hideButtonArea (const AutomationLane&) const;
+    juce::Rectangle<int> automationButtonArea (int laneIndex) const;
+    void drawAutomationLane (juce::Graphics&, const AutomationLane&, juce::Colour, bool selected);
+    juce::PopupMenu automationMenu (tracktion::AudioTrack&);
+    void showLaneMenu (const AutomationLane&, int pointIndex);
+
     tracktion::Edit* edit = nullptr;
     tracktion::Clip::Ptr selectedClip;
     std::map<tracktion::EditItemID, std::unique_ptr<tracktion::SmartThumbnail>> thumbnails;
@@ -100,6 +128,11 @@ private:
     tracktion::BeatPosition dragClipStart;
     tracktion::BeatDuration dragClipLength;
     double dragStartBeat = 0.0;
+
+    tracktion::AutomatableParameter::Ptr dragParam;
+    juce::Rectangle<int> dragLane;
+    int dragPoint = -1, dragStartY = 0;
+    float dragCurveStart = 0.0f;
 
     FlatButton backButton { "Torna all'arrangement", 12.0f }, snapButton { "Griglia: 1/4", 12.0f },
                fitButton { "Adatta", 12.0f };

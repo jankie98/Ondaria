@@ -53,6 +53,7 @@ private:
     IconButton playButton { "Riproduci (Spazio)", icons::play() }, stopButton { "Stop", icons::stop() },
                recordButton { "Registra nell'arrangement (F9)", icons::record() },
                captureButton { "Cattura quello che hai appena suonato (Ctrl+Shift+C)", icons::capture() },
+               automationButton { "Scrivi automazioni: i movimenti delle manopole mentre il brano suona diventano punti", icons::automation() },
                loopButton { "Loop", icons::loop() }, metronomeButton { "Metronomo", icons::metronome() };
     DragNumber tempo { 20.0, 999.0, 0.01, 2, "BPM" };
     FlatButton timeSigButton { "4/4", 13.0f }, quantisationButton { "1 battuta", 12.0f };
