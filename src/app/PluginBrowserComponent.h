@@ -30,6 +30,7 @@ public:
 
     /** Formato usato per i device integrati di Tracktion. */
     static constexpr const char* builtInFormat = "Integrato";
+    static constexpr const char* rackType = "sonoraRack";   ///< voce "Rack" tra i device integrati
 
     std::function<void (const juce::PluginDescription&)> onPluginChosen;
 

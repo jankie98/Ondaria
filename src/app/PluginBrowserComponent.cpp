@@ -148,6 +148,7 @@ void PluginBrowserComponent::rebuildDevices()
     allItems.add (makeBuiltIn (te::ChorusPlugin::xmlTypeName, "Chorus", "Effect", false));
     allItems.add (makeBuiltIn (te::PhaserPlugin::xmlTypeName, "Phaser", "Effect", false));
     allItems.add (makeBuiltIn (te::LowPassPlugin::xmlTypeName, "Filtro", "Effect", false));
+    allItems.add (makeBuiltIn (rackType, "Rack", "Effect", false));
 
     auto types = engine.getPluginManager().knownPluginList.getTypes();
     std::sort (types.begin(), types.end(), [] (const auto& a, const auto& b)

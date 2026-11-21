@@ -62,6 +62,10 @@ Il progetto è un'implementazione originale (codice, nome e grafica) e non conti
   - trasposizione in semitoni, accordatura fine in cent, volume e "Al contrario";
   - la forma d'onda con i marker di warp: doppio clic aggiunge un marker, trascinandolo si stira l'audio prima e dopo (Ctrl senza griglia), doppio clic lo toglie.
   Lo stretch usa Signalsmith Stretch (MIT). Alcuni errori di allineamento del motore sono corretti da una patch in `patches/`: senza, le clip rallentate suonavano fino a 0,1 s in anticipo.
+- **Rack di device:** più catene di device in parallelo dentro un solo device, come strati di strumenti o effetti in parallelo. Ogni catena ha volume, accensione e solo; le uscite si sommano.
+  - Ctrl+G mette in un rack i device selezionati (clic sul titolo, Maiusc per più di uno) o tutti quelli della traccia; Ctrl+Maiusc+G lo separa se ha una sola catena. "Rack" nel browser ne aggiunge uno vuoto.
+  - Cliccando una catena si vedono i suoi device accanto al rack, e i device aggiunti dal browser finiscono lì.
+  - Otto macro: clic destro su una manopola di un device del rack, "Assegna alla macro". Dal clic destro sulla macro si rinomina e si sceglie l'intervallo di ogni parametro (anche al contrario).
 - **Tastiera MIDI su schermo** per suonare gli strumenti anche senza controller.
 - **Registrazione che si vede mentre suoni:** durante la registrazione la clip rossa mostra subito la forma d'onda dell'audio in arrivo, o le note MIDI che stai suonando (quelle tenute si allungano in tempo reale), sia nell'arrangement sia negli slot della session view.
 - **Zoom che cambia il dettaglio:** con la griglia "auto" la quantizzazione segue lo zoom (da gruppi di battute fino a 1/32) e il pulsante mostra quella in uso. Il righello aggiunge i movimenti ("3.2") quando c'è spazio; le clip molto strette diventano blocchi di colore e, zoomando, le note mostrano la velocity.
@@ -80,6 +84,7 @@ Il progetto è un'implementazione originale (codice, nome e grafica) e non conti
 | Ctrl+Z, Ctrl+Shift+Z | Annulla, ripeti |
 | Ctrl+N, Ctrl+O, Ctrl+S, Ctrl+Shift+S | Nuovo, apri, salva, salva con nome |
 | Ctrl+F | Cerca nel browser |
+| Ctrl+G, Ctrl+Shift+G | Metti i device in un rack, separa il rack |
 | F9 | Registra nell'arrangement |
 | F11 | Modalità performance (Esc per uscire) |
 | Ctrl+Shift+C | Cattura quello che hai appena suonato |
