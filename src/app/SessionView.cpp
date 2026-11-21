@@ -6,6 +6,7 @@
 
 #include "SessionView.h"
 #include "Animation.h"
+#include "FreezeUI.h"
 #include "RecordingUI.h"
 #include "Theme.h"
 #include "Widgets.h"
@@ -113,6 +114,14 @@ public:
     te::ClipSlot* getSlot() const       { return session::getSlot (track, sceneIndex); }
 
     void paint (juce::Graphics& g) override
+    {
+        paintSlot (g);
+
+        if (auto slot = getSlot(); slot != nullptr && slot->getClip() != nullptr && freeze::isFrozen (track))
+            freezeui::drawFrozenVeil (g, getLocalBounds().toFloat(), metrics::radius);
+    }
+
+    void paintSlot (juce::Graphics& g)
     {
         auto r = getLocalBounds().toFloat();
         auto slot = getSlot();
@@ -249,7 +258,11 @@ public:
         {
             auto rec = view.recorder;
 
-            if (auto clip = slot->getClip())
+            if (freeze::isFrozen (track))
+            {
+                view.status (freezeui::frozenNotice (track));
+            }
+            else if (auto clip = slot->getClip())
             {
                 session::launchClip (*clip);
             }
@@ -280,7 +293,11 @@ public:
         if (slot == nullptr || e.x < launchZone)
             return;
 
-        if (slot->getClip() == nullptr)
+        if (freeze::isFrozen (track))
+        {
+            view.status (freezeui::frozenNotice (track));
+        }
+        else if (slot->getClip() == nullptr)
         {
             session::createMidiClip (*slot, 1);
             view.status ("Creata una clip MIDI di una battuta su " + track.getName());
@@ -577,6 +594,13 @@ public:
         auto text = header.reduced (10.0f, 0.0f).withTrimmedTop (2.0f);
         g.setColour (colours::text);
         g.setFont (fonts::ui (12.5f, fonts::Weight::medium));
+        if (freeze::isFrozen (*track))
+        {
+            auto flake = header.withTrimmedRight (6.0f).removeFromRight (20.0f);
+            freezeui::drawSnowflake (g, flake.withSizeKeepingCentre (13.0f, 13.0f), freezeui::iceColour());
+            text = text.withTrimmedRight (22.0f);
+        }
+
         g.drawText (track->getName(), text, juce::Justification::centredLeft, true);
 
         // Canale del mixer con lo stesso colore in alto
@@ -692,6 +716,15 @@ private:
         }
 
         m.addSeparator();
+        freezeui::addMenuItems (m, *t, [safe] (const juce::String& s)
+        {
+            if (safe != nullptr)
+            {
+                safe->repaint();
+                safe->view.status (s);
+            }
+        });
+        m.addSeparator();
         m.addItem ("Elimina traccia", [t] { session::deleteTrack (*t); });
         m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this));
     }
@@ -708,7 +741,8 @@ private:
 };
 
 //==============================================================================
-class SessionView::SceneColumn final : public juce::Component
+class SessionView::SceneColumn final : public juce::Component,
+                                      private te::TransportControl::Listener
 {
 public:
     explicit SceneColumn (SessionView& v) : view (v)
@@ -761,11 +795,15 @@ public:
 
     ~SceneColumn() override
     {
-        meter.setMeasurer (nullptr);
+        listenTo (nullptr);
     }
 
     void refresh()
     {
+        // Il misuratore del master vive nel contesto di riproduzione, che il motore
+        // libera e ricrea (render del freeze, export): ci facciamo avvisare
+        listenTo (view.edit);
+
         if (view.edit == nullptr)
             return;
 
@@ -919,6 +957,29 @@ private:
         m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this));
     }
 
+    void listenTo (te::Edit* e)
+    {
+        if (e == listenedEdit)
+            return;
+
+        // L'edit precedente e' ancora vivo: chi cambia progetto passa prima da nullptr
+        meter.setMeasurer (nullptr);
+
+        if (listenedEdit != nullptr)
+            listenedEdit->getTransport().removeListener (this);
+
+        listenedEdit = e;
+
+        if (listenedEdit != nullptr)
+            listenedEdit->getTransport().addListener (this);
+    }
+
+    void playbackContextChanged() override
+    {
+        // Il contesto vecchio (se c'era) e' gia' distrutto
+        meter.forgetMeasurer();
+    }
+
     void updateLabel()
     {
         const auto db = masterVolume.getValue();
@@ -932,6 +993,7 @@ private:
     juce::Slider masterVolume;
     juce::Label dbLabel;
     LevelMeter meter;
+    te::Edit* listenedEdit = nullptr;
 };
 
 //==============================================================================

@@ -97,6 +97,11 @@ void startTransportFromBar (tracktion::Edit&);
     modo. Da chiamare subito dopo aver creato o aperto un Edit. */
 void setUpFilePaths (tracktion::Edit&);
 
+/** Apre un progetto salvato. A differenza di tracktion::loadEditFromFile tiene
+    l'identificativo scritto nel file, cosi' il progetto ritrova la sua cartella
+    temporanea (e i file delle tracce congelate). Ritorna nullptr se il file non si legge. */
+std::unique_ptr<tracktion::Edit> loadEdit (tracktion::Engine&, const juce::File&);
+
 /** Nomi dei valori di quantizzazione del lancio, nell'ordine di LaunchQType. */
 juce::StringArray getQuantisationNames();
 

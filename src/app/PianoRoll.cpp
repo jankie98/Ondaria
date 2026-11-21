@@ -6,6 +6,7 @@
 
 #include "PianoRoll.h"
 #include "Animation.h"
+#include "FreezeUI.h"
 #include "session/Notes.h"
 #include "session/Session.h"
 
@@ -662,6 +663,26 @@ void PianoRoll::timerCallback()
         setClip (nullptr);
 
     updateToolbar();
+
+    // Clip di una traccia congelata: le note si vedono ma non si modificano
+    const bool frozen = isFrozen();
+
+    if (grid->isEnabled() == frozen)
+    {
+        grid->setEnabled (! frozen);
+        grid->setAlpha (frozen ? 0.55f : 1.0f);
+
+        for (auto* b : { &lengthButton, &quantiseButton })
+            b->setEnabled (! frozen);
+
+        repaint();
+    }
+}
+
+bool PianoRoll::isFrozen() const
+{
+    auto t = clip != nullptr ? dynamic_cast<te::AudioTrack*> (clip->getTrack()) : nullptr;
+    return t != nullptr && freeze::isFrozen (*t);
 }
 
 void PianoRoll::updateToolbar()
@@ -737,6 +758,14 @@ void PianoRoll::paint (juce::Graphics& g)
     g.setColour (colours::textDim);
     g.setFont (fonts::ui (11.5f));
     g.drawText ("Griglia", bar.removeFromLeft (48), juce::Justification::centredLeft);
+
+    if (isFrozen())
+    {
+        auto note = bar.withTrimmedBottom (4).removeFromRight (300).toFloat();
+        freezeui::drawSnowflake (g, note.removeFromLeft (22.0f).withSizeKeepingCentre (12.0f, 12.0f), freezeui::iceColour());
+        g.setColour (colours::textMid);
+        g.drawText ("Traccia congelata: note in sola lettura", note, juce::Justification::centredLeft, true);
+    }
 }
 
 void PianoRoll::resized()
@@ -762,6 +791,9 @@ void PianoRoll::resized()
 
 bool PianoRoll::keyPressed (const juce::KeyPress& k)
 {
+    if (isFrozen())
+        return false;
+
     return grid->keyPressed (k);
 }
 

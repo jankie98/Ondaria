@@ -6,6 +6,7 @@
 
 #include "ArrangementView.h"
 #include "Animation.h"
+#include "FreezeUI.h"
 #include "RecordingUI.h"
 #include "session/Arrangement.h"
 #include "session/Automation.h"
@@ -27,6 +28,12 @@ namespace
     constexpr int automationHeight = 52;
     constexpr int pointRadius = 4;
     constexpr int valueInset = 6;
+
+    bool isOnFrozenTrack (te::Clip& c)
+    {
+        auto t = dynamic_cast<te::AudioTrack*> (c.getTrack());
+        return t != nullptr && freeze::isFrozen (*t);
+    }
 
     namespace au = sonora::automation;
 
@@ -642,10 +649,15 @@ void ArrangementView::paint (juce::Graphics& g)
             g.drawRoundedRectangle (header.toFloat().reduced (0.5f), metrics::radius, 1.0f);
         }
 
-        auto text = header.reduced (12, 0).withTrimmedRight (60).toFloat();
+        const bool frozen = freeze::isFrozen (*t);
+        auto text = header.reduced (12, 0).withTrimmedRight (frozen ? 80 : 60).toFloat();
         g.setColour (colours::text);
         g.setFont (fonts::ui (12.5f, fonts::Weight::medium));
         g.drawText (t->getName(), text, juce::Justification::centredLeft, true);
+
+        if (frozen)
+            freezeui::drawSnowflake (g, automationButtonArea (i).toFloat().translated (-22.0f, 0.0f).reduced (4.0f),
+                                     freezeui::iceColour());
 
         if (recorder != nullptr)
         {
@@ -805,6 +817,9 @@ void ArrangementView::drawClip (juce::Graphics& g, te::Clip& c, juce::Rectangle<
         }
     }
 
+    if (isOnFrozenTrack (c))
+        freezeui::drawFrozenVeil (g, clipRect (c).toFloat(), 5.0f);
+
     if (selected)
     {
         g.setColour (colours::text);
@@ -898,6 +913,17 @@ void ArrangementView::showHeaderMenu (te::AudioTrack& track)
     }
 
     m.addSubMenu ("Automazione", automationMenu (track));
+    m.addSeparator();
+    freezeui::addMenuItems (m, track, [safe = juce::Component::SafePointer<ArrangementView> (this)] (const juce::String& s)
+    {
+        if (safe != nullptr)
+        {
+            safe->repaint();
+
+            if (safe->onStatus)
+                safe->onStatus (s);
+        }
+    });
     m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this));
 }
 
@@ -1032,6 +1058,17 @@ void ArrangementView::mouseDown (const juce::MouseEvent& e)
     if (c == nullptr)
         return;
 
+    // Le clip di una traccia congelata non si toccano: suona il file del freeze
+    if (auto t = dynamic_cast<te::AudioTrack*> (c->getTrack()); t != nullptr && freeze::isFrozen (*t))
+    {
+        if (e.mods.isPopupMenu())
+            showHeaderMenu (*t);
+        else if (onStatus)
+            onStatus (freezeui::frozenNotice (*t));
+
+        return;
+    }
+
     if (e.mods.isPopupMenu())
     {
         showClipMenu (*c);
@@ -1136,6 +1173,14 @@ void ArrangementView::mouseDoubleClick (const juce::MouseEvent& e)
 
     if (auto t = trackAtY (e.y))
     {
+        if (freeze::isFrozen (*t))
+        {
+            if (onStatus)
+                onStatus (freezeui::frozenNotice (*t));
+
+            return;
+        }
+
         edit->getUndoManager().beginNewTransaction ("Nuova clip MIDI");
         // Come nella session view, una clip nuova parte dall'inizio della battuta
         const double bar = arrangement::barLength (*edit).inBeats();
@@ -1150,7 +1195,7 @@ void ArrangementView::mouseMove (const juce::MouseEvent& e)
 {
     auto newCursor = juce::MouseCursor::NormalCursor;
 
-    if (auto c = clipAt (e.getPosition()))
+    if (auto c = clipAt (e.getPosition()); c != nullptr && ! isOnFrozenTrack (*c))
         newCursor = clipRect (*c).getRight() - e.x <= resizeEdge ? juce::MouseCursor::LeftRightResizeCursor
                                                               : juce::MouseCursor::DraggingHandCursor;
 

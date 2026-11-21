@@ -158,7 +158,7 @@ struct SessionTests final : public juce::UnitTest
             const int numScenes = edit->getSceneList().getNumScenes();
             edit = nullptr;
 
-            auto reloaded = te::loadEditFromFile (engine, file);
+            auto reloaded = sonora::session::loadEdit (engine, file);
             expect (reloaded != nullptr);
 
             if (reloaded != nullptr)

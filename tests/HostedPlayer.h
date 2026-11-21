@@ -72,6 +72,7 @@ public:
             }
 
             hosted.processBlock (buffer, midi);
+            outputPeak = std::max (outputPeak, buffer.getMagnitude (0, num));
             done += num;
             samplePos += num;
 
@@ -89,6 +90,7 @@ public:
     }
 
     std::function<void()> afterBlock;
+    float outputPeak = 0.0f;   ///< picco dell'uscita dall'ultimo azzeramento
     te::Engine& engine;
     te::HostedAudioDeviceInterface& hosted;
     te::HostedAudioDeviceInterface::Parameters params;

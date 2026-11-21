@@ -6,6 +6,7 @@
 
 #include "DeviceChainComponent.h"
 #include "DeviceVisualiser.h"
+#include "FreezeUI.h"
 #include "Widgets.h"
 
 namespace te = tracktion;
@@ -20,8 +21,12 @@ namespace
 
     bool isMixerPlugin (te::Plugin* p)
     {
-        return dynamic_cast<te::VolumeAndPanPlugin*> (p) != nullptr || dynamic_cast<te::LevelMeterPlugin*> (p) != nullptr;
+        return dynamic_cast<te::VolumeAndPanPlugin*> (p) != nullptr
+            || dynamic_cast<te::LevelMeterPlugin*> (p) != nullptr
+            || dynamic_cast<te::FreezePointPlugin*> (p) != nullptr;
     }
+
+    constexpr int frozenBannerHeight = 34;
 }
 
 //==============================================================================
@@ -261,6 +266,14 @@ DeviceChainComponent::DeviceChainComponent()
     viewport.setViewedComponent (&content, false);
     viewport.setScrollBarsShown (false, true);
     addAndMakeVisible (viewport);
+    addChildComponent (unfreezeButton);
+    unfreezeButton.onClick = [this]
+    {
+        if (track != nullptr)
+            freeze::unfreeze (*track);
+
+        rebuild();
+    };
     startTimerHz (30);
 }
 
@@ -289,7 +302,7 @@ te::Plugin::Array DeviceChainComponent::getUserPlugins() const
 
 void DeviceChainComponent::timerCallback()
 {
-    if (getUserPlugins() != shownPlugins || trackColour() != shownColour)
+    if (getUserPlugins() != shownPlugins || trackColour() != shownColour || isTrackFrozen() != shownFrozen)
         rebuild();
     else
         for (auto* b : boxes)
@@ -302,12 +315,26 @@ void DeviceChainComponent::rebuild()
     shownPlugins = getUserPlugins();
 
     shownColour = trackColour();
+    shownFrozen = isTrackFrozen();
+    unfreezeButton.setVisible (shownFrozen);
 
     for (auto p : shownPlugins)
-        content.addAndMakeVisible (boxes.add (new DeviceBox (p, shownColour)));
+    {
+        auto box = boxes.add (new DeviceBox (p, shownColour));
+        content.addAndMakeVisible (box);
+
+        // I device congelati sono fermi: si vedono ma non si toccano
+        box->setEnabled (! p->isFrozen());
+        box->setAlpha (p->isFrozen() ? 0.4f : 1.0f);
+    }
 
     resized();
     repaint();
+}
+
+bool DeviceChainComponent::isTrackFrozen() const
+{
+    return track != nullptr && freeze::isFrozen (*track);
 }
 
 juce::Colour DeviceChainComponent::trackColour() const
@@ -319,10 +346,23 @@ void DeviceChainComponent::paint (juce::Graphics& g)
 {
     g.fillAll (colours::sidebar);
 
+    if (shownFrozen)
+    {
+        auto banner = getLocalBounds().removeFromTop (frozenBannerHeight).reduced (0, 4).toFloat();
+        g.setColour (freezeui::iceColour().withAlpha (0.1f));
+        g.fillRoundedRectangle (banner, 6.0f);
+        freezeui::drawSnowflake (g, banner.removeFromLeft (30.0f).withSizeKeepingCentre (14.0f, 14.0f), freezeui::iceColour());
+        g.setColour (colours::textMid);
+        g.setFont (fonts::ui (12.0f));
+        g.drawText (juce::String::fromUTF8 ("Traccia congelata: suona dal file e i device prima del fader sono fermi. "
+                                            "Scongelala per modificarli."),
+                    banner.withTrimmedRight (110.0f), juce::Justification::centredLeft, true);
+    }
+
     if (track != nullptr && ! boxes.isEmpty())
         return;
 
-    auto r = getLocalBounds().reduced (0, 4);
+    auto r = getLocalBounds().withTrimmedTop (shownFrozen ? frozenBannerHeight : 0).reduced (0, 4);
     auto hint = r.withSizeKeepingCentre (juce::jmin (r.getWidth() - 20, 420), juce::jmin (r.getHeight() - 8, 120));
     g.setColour (colours::outline);
     g.drawRoundedRectangle (hint.toFloat(), 10.0f, 1.0f);   // tratteggio non necessario: bordo sottile
@@ -336,9 +376,18 @@ void DeviceChainComponent::paint (juce::Graphics& g)
 
 void DeviceChainComponent::resized()
 {
-    viewport.setBounds (getLocalBounds());
+    auto area = getLocalBounds();
 
-    const int h = juce::jmax (0, getHeight() - viewport.getScrollBarThickness());
+    if (shownFrozen)
+    {
+        auto banner = area.removeFromTop (frozenBannerHeight).reduced (0, 4);
+        unfreezeButton.setBounds (banner.removeFromRight (96).reduced (4, 3));
+        area.removeFromTop (4);
+    }
+
+    viewport.setBounds (area);
+
+    const int h = juce::jmax (0, viewport.getHeight() - viewport.getScrollBarThickness());
     int x = 0;
 
     for (auto* b : boxes)

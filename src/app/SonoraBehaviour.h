@@ -8,6 +8,7 @@
 
 #include <tracktion_engine/tracktion_engine.h>
 #include "PluginWindow.h"
+#include "TaskOverlay.h"
 
 namespace sonora
 {
@@ -32,6 +33,12 @@ public:
             return w->recreateEditorAsync();
 
         UIBehaviour::recreatePluginWindowContentAsync (p);
+    }
+
+    // Il render del freeze: gira in sottofondo con un velo e la barra di avanzamento
+    void runTaskWithProgressBar (tracktion::ThreadPoolJobWithProgress& job) override
+    {
+        TaskOverlay::run (job);
     }
 };
 
