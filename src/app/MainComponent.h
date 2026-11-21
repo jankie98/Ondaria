@@ -10,6 +10,7 @@
 
 #include "ArrangementView.h"
 #include "CommandPalette.h"
+#include "ExportPanel.h"
 #include "DeviceChainComponent.h"
 #include "PianoRoll.h"
 #include "PluginBrowserComponent.h"
@@ -72,6 +73,7 @@ private:
     void stopTransport (bool returnToStartIfStopped);
     void toggleRecord();
     void captureNow();
+    void showExport();
     void status (const juce::String&);
 
     tracktion::Engine& engine;
@@ -90,6 +92,7 @@ private:
     Detail detail = Detail::devices;
     FlatButton devicesTab { "Device", 12.0f }, clipTab { "Clip", 12.0f };
     CommandPalette palette;
+    ExportPanel exportPanel;
 
     IconButton keyboardButton { "Tastiera MIDI su schermo", icons::keyboard() };
     FlatButton addDeviceButton { "+ Aggiungi device", 12.0f };

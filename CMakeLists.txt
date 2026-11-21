@@ -45,6 +45,8 @@ function (sonora_configure_target target)
         JUCE_MODAL_LOOPS_PERMITTED=1
         JUCE_STRICT_REFCOUNTEDPOINTER=1
         JUCE_DISPLAY_SPLASH_SCREEN=0
+        JUCE_USE_LAME_AUDIO_FORMAT=1
+        TRACKTION_ENABLE_LIBLAME=1
         SONORA_VERSION="${PROJECT_VERSION}")
 
     target_link_libraries (${target} PRIVATE clap juce::juce_recommended_config_flags)
@@ -78,6 +80,8 @@ set (SONORA_SESSION_SOURCES
     src/session/Notes.h
     src/session/Automation.cpp
     src/session/Automation.h
+    src/session/Export.cpp
+    src/session/Export.h
     src/session/Capture.cpp
     src/session/Capture.h
     src/session/Recording.cpp
@@ -126,6 +130,8 @@ target_sources (Sonora PRIVATE
     src/app/PianoRoll.cpp
     src/app/PianoRoll.h
     src/app/CommandPalette.cpp
+    src/app/ExportPanel.cpp
+    src/app/ExportPanel.h
     src/app/CommandPalette.h
     src/app/DeviceChainComponent.cpp
     src/app/DeviceChainComponent.h

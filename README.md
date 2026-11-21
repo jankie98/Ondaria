@@ -52,6 +52,7 @@ Il progetto è un'implementazione originale (codice, nome e grafica) e non conti
 - **Device che si vedono:** l'EQ mostra la sua curva con un punto per banda da trascinare (rotella per la larghezza, doppio clic per azzerare), il filtro la curva con la frequenza di taglio, il compressore la curva ingresso/uscita con la soglia da trascinare. Delay, riverbero, chorus, phaser e synth mostrano ripetizioni, coda, LFO in movimento e inviluppo.
 - **Animazioni e colore:** la testina scorre fluida in arrangement e piano roll, le clip si illuminano quando partono e pulsano a tempo, i pannelli si aprono con una transizione morbida. Il colore della traccia segue la traccia ovunque: intestazioni, fader, mixer, device e corsie. I meter tengono il picco per un attimo prima di farlo scendere.
 - **Progetti:** nuovo, apri, salva, salva con nome. Ogni modifica si annulla con Ctrl+Z.
+- **Export (Ctrl+Shift+R):** il brano intero o solo il loop diventa un file WAV (16, 24 o 32 bit float), FLAC, MP3 (192-320 kb/s) o Ogg Vorbis, a 44.1, 48 o 96 kHz. Con "Stem" esce un file per ogni traccia con clip, numerato e allineato all'inizio del brano, pronto da importare altrove. Si può normalizzare il picco a -0.3 dB e lasciar finire riverberi e delay oltre la fine. Il render gira in sottofondo con la sua barra di avanzamento. L'MP3 usa la libreria LAME del sistema: su Arch `pacman -S lame`, su Windows `libmp3lame.dll` accanto al programma.
 - **Tastiera MIDI su schermo** per suonare gli strumenti anche senza controller.
 
 ### Scorciatoie
@@ -67,6 +68,7 @@ Il progetto è un'implementazione originale (codice, nome e grafica) e non conti
 | Ctrl+F | Cerca nel browser |
 | F9 | Registra nell'arrangement |
 | Ctrl+Shift+C | Cattura quello che hai appena suonato |
+| Ctrl+Shift+R | Esporta audio (mix o stem) |
 | Ctrl+D | Duplica la clip (arrangement) |
 | Canc | Elimina la clip o le note selezionate |
 
