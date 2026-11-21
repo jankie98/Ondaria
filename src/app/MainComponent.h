@@ -8,6 +8,7 @@
 
 #include <tracktion_engine/tracktion_engine.h>
 
+#include "ArrangementView.h"
 #include "CommandPalette.h"
 #include "DeviceChainComponent.h"
 #include "PianoRoll.h"
@@ -41,8 +42,6 @@ public:
     void saveIfChanged();
 
 private:
-    class ArrangementPlaceholder;
-
     void handleNoteOn (juce::MidiKeyboardState*, int channel, int note, float velocity) override;
     void handleNoteOff (juce::MidiKeyboardState*, int channel, int note, float velocity) override;
     void timerCallback() override;
@@ -63,6 +62,7 @@ private:
 
     enum class Detail { devices, clip, keyboard };
     void setDetail (Detail);
+    std::function<void (tracktion::Clip*)> showClip;
     int getDetailHeight() const;
     void togglePlay();
     void status (const juce::String&);
@@ -75,7 +75,7 @@ private:
     TopBar topBar;
     PluginBrowserComponent browser;
     SessionView sessionView;
-    std::unique_ptr<ArrangementPlaceholder> arrangement;
+    ArrangementView arrangement;
     DeviceChainComponent deviceChain;
     PianoRoll pianoRoll;
     Detail detail = Detail::devices;

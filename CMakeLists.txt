@@ -72,6 +72,8 @@ list (TRANSFORM SONORA_HOST_SOURCES PREPEND "${CMAKE_SOURCE_DIR}/" OUTPUT_VARIAB
 
 # Logica della session view (senza interfaccia), usata dall'app e dai test.
 set (SONORA_SESSION_SOURCES
+    src/session/Arrangement.cpp
+    src/session/Arrangement.h
     src/session/Notes.cpp
     src/session/Notes.h
     src/session/Session.cpp
@@ -110,6 +112,8 @@ juce_add_gui_app (Sonora
     NEEDS_WEB_BROWSER FALSE)
 
 target_sources (Sonora PRIVATE
+    src/app/ArrangementView.cpp
+    src/app/ArrangementView.h
     src/app/Main.cpp
     src/app/MainComponent.cpp
     src/app/MainComponent.h

@@ -4,7 +4,7 @@ Sonora è una DAW open source per **Linux e Windows**, pensata per un flusso di 
 
 Il progetto è un'implementazione originale (codice, nome e grafica) e non contiene codice o risorse di altre DAW commerciali.
 
-> Stato: **in sviluppo** (fase 3 della roadmap). C'è la nuova interfaccia con la session view: clip e scene lanciate a tempo, mixer per traccia, plugin di ogni formato. L'arrangement arriva nella fase 4.
+> Stato: **in sviluppo** (fase 4 della roadmap). Ci sono la session view con clip e scene lanciate a tempo, l'arrangement con la linea del tempo, il piano roll, il mixer per traccia e i plugin di ogni formato. Registrazione, automazioni ed export sono i prossimi passi.
 
 ## Cosa c'è già
 
@@ -24,6 +24,12 @@ Il progetto è un'implementazione originale (codice, nome e grafica) e non conti
 - **Session view:** una colonna per traccia e una riga per scena. Le clip si lanciano a tempo con la quantizzazione scelta (da nessuna a 8 battute); lanciare una scena fa partire tutta la riga, e gli slot vuoti lasciano suonare la traccia.
   - Triangolo della clip: la lancia. Doppio clic su uno slot vuoto: nuova clip MIDI. Trascina un file audio o MIDI su uno slot per importarlo.
   - Invio lancia, Canc elimina, frecce per muoversi; clic destro per rinominare, cambiare colore, inserire o eliminare.
+- **Arrangement:** la linea del tempo con una corsia per traccia, separata dalla session view come in un flusso a due viste.
+  - Doppio clic su una corsia vuota: nuova clip MIDI di una battuta. Trascina una clip per spostarla (anche su un'altra traccia), trascina il bordo destro per allungarla; tutto segue la griglia scelta.
+  - Ctrl+D duplica, Canc elimina, clic destro per il menu. Trascina file audio o MIDI dal browser o dal sistema per importarli nel punto giusto.
+  - Clic sul righello per spostare la testina, Shift+trascina per impostare il loop. Ctrl+rotella per lo zoom, "Adatta" per vedere tutto il brano.
+  - Se una traccia sta suonando le clip della session, il pulsante "Torna all'arrangement" la riporta alla linea del tempo.
+- **Piano roll:** clic per scrivere una nota (trascina per decidere la durata), trascina per spostare o allungare, doppio clic per cancellare; velocity in basso, griglia da 1/4 a 1/32 e terzine, quantizzazione, frecce per trasporre (Shift per l'ottava).
 - **Mixer per traccia:** volume, pan, mute, solo e meter; volume e meter del master.
 - **Barra superiore:** trasporto, posizione, tempo (trascina o doppio clic per scriverlo), metro, quantizzazione del lancio, loop, metronomo, undo/redo.
 - **Palette comandi (Ctrl+K):** cerca e avvia qualsiasi azione o aggiungi un device scrivendone il nome.
@@ -43,6 +49,8 @@ Il progetto è un'implementazione originale (codice, nome e grafica) e non conti
 | Ctrl+Z, Ctrl+Shift+Z | Annulla, ripeti |
 | Ctrl+N, Ctrl+O, Ctrl+S, Ctrl+Shift+S | Nuovo, apri, salva, salva con nome |
 | Ctrl+F | Cerca nel browser |
+| Ctrl+D | Duplica la clip (arrangement) |
+| Canc | Elimina la clip o le note selezionate |
 
 ## Scaricare una versione pronta
 

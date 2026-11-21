@@ -341,7 +341,18 @@ public:
                 preview (previewPitch, true);
             }
         }
-        else if (dragMode == DragMode::resize || dragMode == DragMode::create)
+        else if (dragMode == DragMode::create)
+        {
+            // Trascinando mentre si disegna, la nota arriva fin sotto il mouse:
+            // la lunghezza ricordata vale solo per il clic semplice.
+            if (std::abs (e.getDistanceFromDragStartX()) < 4)
+                return;
+
+            const auto mouseBeat = te::BeatPosition::fromBeats (beatForX (pos.x));
+            auto end = notes::snapNearest (mouseBeat, gridSize);
+            notes::resizeNote (*c, *activeNote, end - activeNote->getStartBeat(), gridSize);
+        }
+        else if (dragMode == DragMode::resize)
         {
             auto end = notes::snapNearest (dragStartBeat + dragStartLength + te::BeatDuration::fromBeats (deltaBeats), gridSize);
             notes::resizeNote (*c, *activeNote, end - activeNote->getStartBeat(), gridSize);
@@ -616,8 +627,13 @@ void PianoRoll::updateToolbar()
     const int bars = juce::roundToInt (notes::getClipLength (*clip).inBeats() / beatsPerBar);
     const auto text = juce::String (bars) + (bars == 1 ? " battuta" : " battute");
 
+    // La lunghezza puo' cambiare anche da fuori (per esempio allungando la clip nell'arrangement)
     if (lengthButton.getButtonText() != text)
+    {
         lengthButton.setButtonText (text);
+        grid->fitWidth();
+        grid->repaint();
+    }
 }
 
 void PianoRoll::showGridMenu()
