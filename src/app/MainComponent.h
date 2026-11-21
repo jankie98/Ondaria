@@ -64,6 +64,8 @@ private:
     void setDetail (Detail);
     std::function<void (tracktion::Clip*)> showClip;
     int getDetailHeight() const;
+    int targetDetailHeight() const;
+    void animateDetail();
     void togglePlay();
     void stopTransport (bool returnToStartIfStopped);
     void toggleRecord();
@@ -93,6 +95,11 @@ private:
     juce::String statusText;
     juce::uint32 statusTime = 0;
     TopBar::View view = TopBar::View::session;
+
+    // Altezza del pannello dettaglio mentre scorre verso quella nuova
+    float detailHeightNow = 0.0f;
+    bool detailAnimating = false;
+    juce::VBlankAttachment vblank { this, [this] { animateDetail(); } };
 };
 
 } // namespace sonora

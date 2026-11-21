@@ -5,6 +5,7 @@
 */
 
 #include "MainComponent.h"
+#include "Animation.h"
 #include "Theme.h"
 #include "session/Session.h"
 
@@ -367,21 +368,50 @@ void MainComponent::setView (TopBar::View v)
 {
     view = v;
     topBar.setView (v);
-    sessionView.setVisible (v == TopBar::View::session);
-    arrangement.setVisible (v == TopBar::View::arrangement);
+    juce::Component& shown = v == TopBar::View::session ? (juce::Component&) sessionView : arrangement;
+    juce::Component& hidden = v == TopBar::View::session ? (juce::Component&) arrangement : sessionView;
+    juce::Desktop::getInstance().getAnimator().cancelAnimation (&hidden, false);
+    hidden.setVisible (false);
+    hidden.setAlpha (1.0f);
+
+    if (! shown.isVisible())
+        anim::fadeIn (shown, 140);
 
     if (v == TopBar::View::arrangement)
         arrangement.grabKeyboardFocus();
 }
 
-int MainComponent::getDetailHeight() const
+int MainComponent::targetDetailHeight() const
 {
     // Il piano roll ha bisogno di piu' spazio della catena di device.
     return metrics::detailHeight + (detail == Detail::clip ? juce::jmax (0, getHeight() / 5) : 0);
 }
 
+int MainComponent::getDetailHeight() const
+{
+    return detailAnimating ? juce::roundToInt (detailHeightNow) : targetDetailHeight();
+}
+
+void MainComponent::animateDetail()
+{
+    if (! detailAnimating)
+        return;
+
+    if (! anim::approach (detailHeightNow, (float) targetDetailHeight(), 0.3f))
+        detailAnimating = false;
+
+    resized();
+    repaint();
+}
+
 void MainComponent::setDetail (Detail d)
 {
+    if (isShowing() && d != detail)
+    {
+        detailHeightNow = (float) getDetailHeight();
+        detailAnimating = true;
+    }
+
     detail = d;
     deviceChain.setVisible (d == Detail::devices);
     pianoRoll.setVisible (d == Detail::clip);

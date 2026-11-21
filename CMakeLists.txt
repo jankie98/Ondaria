@@ -125,6 +125,8 @@ target_sources (Sonora PRIVATE
     src/app/CommandPalette.h
     src/app/DeviceChainComponent.cpp
     src/app/DeviceChainComponent.h
+    src/app/DeviceVisualiser.cpp
+    src/app/DeviceVisualiser.h
     src/app/PluginBrowserComponent.cpp
     src/app/PluginBrowserComponent.h
     src/app/PluginWindow.cpp

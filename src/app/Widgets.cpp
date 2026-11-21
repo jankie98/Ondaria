@@ -392,6 +392,22 @@ void LevelMeter::timerCallback()
             levels[ch] = next;
             changed = true;
         }
+
+        // Picco: resta fermo un attimo, poi scende piano
+        if (next >= peaks[ch])
+        {
+            peaks[ch] = next;
+            peakHold[ch] = 30;
+        }
+        else if (peakHold[ch] > 0)
+        {
+            --peakHold[ch];
+        }
+        else if (peaks[ch] > -100.0f)
+        {
+            peaks[ch] = juce::jmax (-100.0f, peaks[ch] - 0.8f);
+            changed = true;
+        }
     }
 
     if (changed)
@@ -417,6 +433,16 @@ void LevelMeter::paint (juce::Graphics& g)
             auto filled = bar.withTop (bar.getBottom() - bar.getHeight() * proportion);
             g.setColour (levels[ch] > 0.0f ? colours::record : (levels[ch] > -6.0f ? colours::warning : colours::play));
             g.fillRoundedRectangle (filled, 2.0f);
+        }
+
+        const float peak = juce::jlimit (0.0f, 1.0f, (peaks[ch] + 60.0f) / 66.0f);
+
+        if (peak > 0.0f)
+        {
+            const float y = bar.getBottom() - bar.getHeight() * peak;
+            const float alpha = peakHold[ch] > 0 ? 0.9f : juce::jmap (peak, 0.0f, 1.0f, 0.2f, 0.7f);
+            g.setColour ((peaks[ch] > 0.0f ? colours::record : colours::text).withAlpha (alpha));
+            g.fillRect (bar.getX(), juce::jmax (bar.getY(), y - 1.0f), bar.getWidth(), 1.5f);
         }
     }
 }

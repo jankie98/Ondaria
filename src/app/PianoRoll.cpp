@@ -5,6 +5,7 @@
 */
 
 #include "PianoRoll.h"
+#include "Animation.h"
 #include "session/Notes.h"
 #include "session/Session.h"
 
@@ -35,6 +36,60 @@ public:
     explicit Grid (PianoRoll& o) : owner (o)
     {
         setWantsKeyboardFocus (true);
+
+        playhead = std::make_unique<anim::PlayheadOverlay> (
+            [this]() -> std::optional<int>
+            {
+                if (auto beat = playBeat())
+                    return xForBeat (*beat);
+
+                return std::nullopt;
+            },
+            [this] { return owner.clip != nullptr && owner.clip->edit.getTransport().isPlaying(); });
+
+        addAndMakeVisible (*playhead);
+    }
+
+    /** Posizione di riproduzione dentro la clip (in beat), se sta suonando. */
+    std::optional<double> playBeat() const
+    {
+        auto c = owner.clip;
+
+        if (c == nullptr)
+            return std::nullopt;
+
+        const double clipLength = notes::getClipLength (*c).inBeats();
+
+        if (c->getClipSlot() != nullptr)
+        {
+            if (auto progress = session::getPlayProgress (*c))
+                return *progress * clipLength;
+
+            return std::nullopt;
+        }
+
+        // Clip dell'arrangement: segue la testina del trasporto
+        auto& transport = c->edit.getTransport();
+
+        if (! transport.isPlaying())
+            return std::nullopt;
+
+        const auto pos = transport.getPosition();
+
+        if (! c->getEditTimeRange().contains (pos))
+            return std::nullopt;
+
+        double beat = c->edit.tempoSequence.toBeats (pos).inBeats() - c->getStartBeat().inBeats() + c->getOffsetInBeats().inBeats();
+
+        if (c->isLooping())
+        {
+            const double loopLength = c->getLoopLengthBeats().inBeats();
+
+            if (loopLength > 0.0)
+                beat = c->getLoopStartBeats().inBeats() + std::fmod (beat, loopLength);
+        }
+
+        return beat;
     }
 
     te::BeatDuration gridSize = te::BeatDuration::fromBeats (0.25);
@@ -180,14 +235,6 @@ public:
                 g.setColour (colours::text);
                 g.drawRoundedRectangle (r.toFloat().reduced (0.5f, 0.5f), 3.0f, 1.5f);
             }
-        }
-
-        // Testina di riproduzione
-        if (auto progress = session::getPlayProgress (*c))
-        {
-            const int x = xForBeat (*progress * clipLength);
-            g.setColour (colours::text.withAlpha (0.8f));
-            g.fillRect (x, area.getY(), 1, area.getHeight());
         }
 
         g.restoreState();
@@ -471,6 +518,8 @@ public:
     {
         if (pixelsPerBeat <= 0.0)
             fitWidth();
+
+        playhead->setArea (noteArea().withTop (0));
     }
 
 private:
@@ -484,6 +533,7 @@ private:
     te::BeatPosition dragStartBeat;
     te::BeatDuration dragStartLength, lastLength = te::BeatDuration::fromBeats (0.25);
     int dragStartPitch = 60;
+    std::unique_ptr<anim::PlayheadOverlay> playhead;
 
     static juce::Colour clipColourOf (te::MidiClip& c)
     {
@@ -612,9 +662,6 @@ void PianoRoll::timerCallback()
         setClip (nullptr);
 
     updateToolbar();
-
-    if (clip != nullptr && session::getPlayProgress (*clip))
-        grid->repaint();
 }
 
 void PianoRoll::updateToolbar()

@@ -5,6 +5,7 @@
 */
 
 #include "SessionView.h"
+#include "Animation.h"
 #include "RecordingUI.h"
 #include "Theme.h"
 #include "Widgets.h"
@@ -167,13 +168,38 @@ public:
             const bool playing = state == session::SlotState::playing || state == session::SlotState::stopQueued;
             auto colour = clipColour (*clip);
 
+            // Lampo quando la clip parte davvero (al punto di quantizzazione)
+            const auto now = juce::Time::getMillisecondCounter();
+
+            if (playing && ! wasPlaying)
+                launchFlashStart = now;
+
+            wasPlaying = playing;
+
             g.setColour (playing ? colour : colour.withMultipliedSaturation (0.85f).withMultipliedBrightness (0.85f));
             g.fillRoundedRectangle (r, metrics::radius);
 
             if (auto progress = session::getPlayProgress (*clip))
             {
+                // Pulsazione morbida a ogni beat
+                const double beats = *progress * clip->getLengthInBeats().inBeats();
+                const float phase = (float) (beats - std::floor (beats));
+                const float pulse = (1.0f - phase) * (1.0f - phase);
+
+                g.setColour (juce::Colours::white.withAlpha (0.10f * pulse));
+                g.fillRoundedRectangle (r, metrics::radius);
+
                 g.setColour (colours::background.withAlpha (0.35f));
                 g.fillRect (r.withTop (r.getBottom() - 3.0f).withWidth (r.getWidth() * *progress));
+            }
+
+            if (const auto elapsed = now - launchFlashStart; playing && elapsed < flashMs)
+            {
+                const float k = 1.0f - anim::easeOut ((float) elapsed / (float) flashMs);
+                g.setColour (juce::Colours::white.withAlpha (0.45f * k));
+                g.fillRoundedRectangle (r, metrics::radius);
+                g.setColour (colour.brighter (0.8f).withAlpha (k));
+                g.drawRoundedRectangle (r.reduced (0.75f), metrics::radius, 1.5f);
             }
 
             auto launch = r.removeFromLeft ((float) launchZone).withSizeKeepingCentre (9.0f, 10.0f);
@@ -353,6 +379,10 @@ public:
     }
 
 private:
+    static constexpr juce::uint32 flashMs = 450;
+    bool wasPlaying = false;
+    juce::uint32 launchFlashStart = 0;
+
     static bool isSupported (const juce::File& f)
     {
         return f.hasFileExtension (te::soundFileExtensions) || f.hasFileExtension (te::midiFileExtensions);
@@ -504,7 +534,9 @@ public:
         }
 
         armButton.setVisible (view.recorder != nullptr);
-        pan.setColour (juce::Slider::rotarySliderFillColourId, trackColour (*track));
+        const auto colour = trackColour (*track);
+        pan.setColour (juce::Slider::rotarySliderFillColourId, colour);
+        volume.setColour (juce::Slider::trackColourId, colour.withAlpha (0.75f));
         updateDbLabel();
     }
 
@@ -521,26 +553,43 @@ public:
         auto header = headerArea().toFloat();
         const bool selected = view.getSelectedTrack() == track.get();
 
+        const auto colour = trackColour (*track);
+
+        // Intestazione tinta col colore della traccia, con una fascia piena in alto
         g.setColour (selected ? colours::selection : colours::panel);
         g.fillRoundedRectangle (header, metrics::radius);
+        g.setColour (colour.withAlpha (selected ? 0.22f : 0.12f));
+        g.fillRoundedRectangle (header, metrics::radius);
+
+        {
+            juce::Graphics::ScopedSaveState s (g);
+            g.reduceClipRegion (header.toNearestInt().removeFromTop (3));
+            g.setColour (colour);
+            g.fillRoundedRectangle (header, metrics::radius);
+        }
 
         if (selected)
         {
-            g.setColour (colours::accent);
+            g.setColour (colour.brighter (0.3f));
             g.drawRoundedRectangle (header.reduced (0.5f), metrics::radius, 1.0f);
         }
 
-        auto text = header.reduced (8.0f, 0.0f);
-        g.setColour (trackColour (*track));
-        g.fillRoundedRectangle (text.removeFromLeft (8.0f).withSizeKeepingCentre (8.0f, 8.0f), 2.0f);
-        text.removeFromLeft (8.0f);
-
+        auto text = header.reduced (10.0f, 0.0f).withTrimmedTop (2.0f);
         g.setColour (colours::text);
         g.setFont (fonts::ui (12.5f, fonts::Weight::medium));
         g.drawText (track->getName(), text, juce::Justification::centredLeft, true);
 
+        // Canale del mixer con lo stesso colore in alto
+        auto mixer = mixerArea().toFloat();
         g.setColour (colours::panel);
-        g.fillRoundedRectangle (mixerArea().toFloat(), 8.0f);
+        g.fillRoundedRectangle (mixer, 8.0f);
+
+        {
+            juce::Graphics::ScopedSaveState s (g);
+            g.reduceClipRegion (mixer.toNearestInt().removeFromTop (3));
+            g.setColour (colour.withAlpha (0.9f));
+            g.fillRoundedRectangle (mixer, 8.0f);
+        }
     }
 
     void resized() override
