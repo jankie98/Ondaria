@@ -76,6 +76,8 @@ set (SONORA_SESSION_SOURCES
     src/session/Arrangement.h
     src/session/Notes.cpp
     src/session/Notes.h
+    src/session/Recording.cpp
+    src/session/Recording.h
     src/session/Session.cpp
     src/session/Session.h)
 list (TRANSFORM SONORA_SESSION_SOURCES PREPEND "${CMAKE_SOURCE_DIR}/" OUTPUT_VARIABLE SONORA_SESSION_SOURCES_ABS)

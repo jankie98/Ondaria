@@ -29,13 +29,18 @@ MainComponent::MainComponent (te::Engine& e)
     topBar.onViewChanged = [this] (TopBar::View v) { setView (v); };
     topBar.onShowMenu = [this] { showMainMenu(); };
     topBar.onShowCommandPalette = [this] { showCommandPalette(); };
+    topBar.onTogglePlay = [this] { togglePlay(); };
+    topBar.onStop = [this] { stopTransport (true); };
+    topBar.onRecord = [this] { toggleRecord(); };
+    topBar.isRecording = [this] { return recorder != nullptr && recorder->isRecording(); };
 
     browser.onPluginChosen = [this] (const juce::PluginDescription& d) { insertDevice (d); };
 
     sessionView.onTrackSelected = [this] (te::AudioTrack* t)
     {
         deviceChain.setTrack (t);
-        routeKeyboardTo (t);
+        if (recorder != nullptr)
+            recorder->setSelectedTrack (t);
         repaint (0, getHeight() - getDetailHeight() - statusBarHeight, getWidth(), detailHeaderHeight);
     };
     sessionView.onStatus = [this] (const juce::String& s) { status (s); };
@@ -137,15 +142,21 @@ juce::File MainComponent::getProjectsFolder()
 //==============================================================================
 void MainComponent::setEdit (std::unique_ptr<te::Edit> newEdit)
 {
+    sessionView.setRecorder (nullptr);
+    arrangement.setRecorder (nullptr);
     sessionView.setEdit (nullptr);
     arrangement.setEdit (nullptr);
     pianoRoll.setClip (nullptr);
     deviceChain.setTrack (nullptr);
     topBar.setEdit (nullptr);
 
+    if (recorder != nullptr)
+        recorder->stopAllSlotRecordings();
+
     if (edit != nullptr)
         edit->getTransport().stop (false, true);
 
+    recorder.reset();
     edit = std::move (newEdit);
 
     if (edit == nullptr)
@@ -160,9 +171,19 @@ void MainComponent::setEdit (std::unique_ptr<te::Edit> newEdit)
     edit->getUndoManager().clearUndoHistory();
     edit->getTransport().ensureContextAllocated();
 
+    recorder = std::make_unique<recording::Recorder> (*edit);
+    recorder->onSlotRecorded = [this] (te::Clip& c)
+    {
+        if (auto slot = c.getClipSlot())
+            status ("Registrata la clip \"" + c.getName() + "\" su " + slot->track.getName());
+    };
+
     topBar.setEdit (edit.get());
+    sessionView.setRecorder (recorder.get());
+    arrangement.setRecorder (recorder.get());
     sessionView.setEdit (edit.get());
     arrangement.setEdit (edit.get());
+    recorder->setSelectedTrack (sessionView.getSelectedTrack());
 
     if (auto top = getTopLevelComponent(); top != nullptr && top != this)
         top->setName ("Sonora - " + te::EditFileOperations (*edit).getEditFile().getFileNameWithoutExtension());
@@ -191,6 +212,7 @@ void MainComponent::openProject (const juce::File& file)
         }
     }
 
+    session::setUpFilePaths (*e);
     setEdit (std::move (e));
     status ("Progetto: " + file.getFileNameWithoutExtension());
 }
@@ -377,12 +399,44 @@ void MainComponent::togglePlay()
     if (edit == nullptr)
         return;
 
+    if (edit->getTransport().isPlaying())
+        stopTransport (false);
+    else
+        edit->getTransport().play (false);
+}
+
+void MainComponent::stopTransport (bool returnToStartIfStopped)
+{
+    if (edit == nullptr)
+        return;
+
     auto& t = edit->getTransport();
 
     if (t.isPlaying())
+    {
+        // Le registrazioni negli slot si chiudono prima che il trasporto si fermi.
+        if (recorder != nullptr)
+            recorder->stopAllSlotRecordings();
+
         t.stop (false, false);
-    else
-        t.play (false);
+    }
+    else if (returnToStartIfStopped)
+    {
+        t.setPosition (te::TimePosition());
+    }
+}
+
+void MainComponent::toggleRecord()
+{
+    if (recorder == nullptr)
+        return;
+
+    const bool wasRecording = edit->getTransport().isRecording();
+
+    if (auto res = recorder->toggleArrangementRecording(); res.failed())
+        status (res.getErrorMessage());
+    else if (! wasRecording)
+        status ("Registrazione nell'arrangement");
 }
 
 void MainComponent::status (const juce::String& s)
@@ -410,6 +464,7 @@ bool MainComponent::keyPressed (const juce::KeyPress& key)
     auto is = [&] (char c) { return code == c || code == juce::CharacterFunctions::toUpperCase ((juce::juce_wchar) c); };
 
     if (key == juce::KeyPress::spaceKey && ! cmd)      { togglePlay(); return true; }
+    if (key == juce::KeyPress::F9Key)                   { toggleRecord(); return true; }
     if (key == juce::KeyPress::tabKey && ! cmd)
     {
         setView (view == TopBar::View::session ? TopBar::View::arrangement : TopBar::View::session);
@@ -466,6 +521,12 @@ void MainComponent::showCommandPalette()
     };
 
     add ("Riproduci / ferma", "Spazio", [this] { togglePlay(); });
+    add ("Registra nell'arrangement", "F9", [this] { toggleRecord(); });
+    add ("Arma la traccia selezionata", {}, [this]
+    {
+        if (auto t = sessionView.getSelectedTrack(); t != nullptr && recorder != nullptr)
+            recorder->setArmed (*t, ! recording::isExplicitlyArmed (*t));
+    });
     add ("Ferma tutte le clip", {}, [this] { if (edit != nullptr) session::stopAllClips (*edit); });
     add ("Nuova traccia", "Ctrl+T", [this]
     {
@@ -497,27 +558,6 @@ void MainComponent::showCommandPalette()
 }
 
 //==============================================================================
-void MainComponent::routeKeyboardTo (te::AudioTrack* track)
-{
-    if (edit == nullptr || track == nullptr)
-        return;
-
-    for (auto* instance : edit->getAllInputDevices())
-    {
-        if (instance->getInputDevice().getDeviceType() != te::InputDevice::physicalMidiDevice
-             && instance->getInputDevice().getDeviceType() != te::InputDevice::virtualMidiDevice)
-            continue;
-
-        for (auto target : instance->getTargets())
-            if (target != track->itemID)
-                [[maybe_unused]] auto res = instance->removeTarget (target, nullptr);
-
-        [[maybe_unused]] auto res = instance->setTarget (track->itemID, false, nullptr, 0);
-    }
-
-    edit->restartPlayback();
-}
-
 void MainComponent::insertDevice (const juce::PluginDescription& desc)
 {
     auto track = sessionView.getSelectedTrack();

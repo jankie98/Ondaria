@@ -5,6 +5,7 @@
 */
 
 #include "SessionView.h"
+#include "RecordingUI.h"
 #include "Theme.h"
 #include "Widgets.h"
 #include "session/Session.h"
@@ -117,16 +118,47 @@ public:
         auto clip = slot != nullptr ? slot->getClip() : nullptr;
         const bool selected = view.getSelectedSlot() == slot && slot != nullptr;
 
-        if (clip == nullptr)
+        auto recState = recording::Recorder::SlotRecordState::none;
+
+        if (view.recorder != nullptr && slot != nullptr)
+            recState = view.recorder->getSlotRecordState (*slot);
+
+        if (clip == nullptr && recState != recording::Recorder::SlotRecordState::none)
+        {
+            // Registrazione in corso: lampeggia quando aspetta di fermarsi a tempo.
+            const bool stopping = recState == recording::Recorder::SlotRecordState::stopping;
+            const bool on = ! stopping || (juce::Time::getMillisecondCounter() / 250) % 2 == 0;
+
+            g.setColour (colours::record.withAlpha (0.28f));
+            g.fillRoundedRectangle (r, metrics::radius);
+
+            g.setColour (colours::record.withAlpha (on ? 1.0f : 0.35f));
+            g.fillEllipse (r.removeFromLeft ((float) launchZone).withSizeKeepingCentre (10.0f, 10.0f));
+
+            g.setColour (colours::text);
+            g.setFont (fonts::ui (11.5f, fonts::Weight::medium));
+            g.drawText (stopping ? "Chiusura..." : "Registrazione", r.reduced (2.0f, 0.0f), juce::Justification::centredLeft, true);
+        }
+        else if (clip == nullptr)
         {
             g.setColour (dragOver ? colours::hover : colours::emptySlot);
             g.fillRoundedRectangle (r, metrics::radius);
 
-            if (isMouseOver() && ! dragOver)
+            const bool canRecord = view.recorder != nullptr && slot != nullptr && view.recorder->canRecordInto (*slot);
+            auto zone = r.removeFromLeft ((float) launchZone);
+
+            if (canRecord && ! dragOver)
+            {
+                // Traccia armata: ogni slot vuoto mostra il pulsante di registrazione.
+                const bool hoverZone = isMouseOver() && getMouseXYRelative().x < launchZone;
+                g.setColour (hoverZone ? colours::record : colours::record.withAlpha (0.6f));
+                g.drawEllipse (zone.withSizeKeepingCentre (10.0f, 10.0f), 1.5f);
+            }
+            else if (isMouseOver() && ! dragOver)
             {
                 // Quadratino di stop, come negli slot vuoti di un clip launcher.
                 g.setColour (colours::textDim);
-                g.fillRoundedRectangle (r.removeFromLeft ((float) launchZone).withSizeKeepingCentre (7.0f, 7.0f), 1.0f);
+                g.fillRoundedRectangle (zone.withSizeKeepingCentre (7.0f, 7.0f), 1.0f);
             }
         }
         else
@@ -189,12 +221,31 @@ public:
 
         if (e.x < launchZone)
         {
+            auto rec = view.recorder;
+
             if (auto clip = slot->getClip())
+            {
                 session::launchClip (*clip);
+            }
+            else if (rec != nullptr && rec->getSlotRecordState (*slot) == recording::Recorder::SlotRecordState::recording)
+            {
+                rec->stopSlotRecording (*slot);
+            }
+            else if (rec != nullptr && rec->canRecordInto (*slot))
+            {
+                if (auto res = rec->startSlotRecording (*slot); res.failed())
+                    view.status (res.getErrorMessage());
+                else
+                    view.status ("Registrazione su " + track.getName() + ": clicca di nuovo per fermarla a tempo");
+            }
             else
+            {
                 session::stopTrack (track);
+            }
         }
     }
+
+    void mouseMove (const juce::MouseEvent&) override   { repaint(); }
 
     void mouseDoubleClick (const juce::MouseEvent& e) override
     {
@@ -390,6 +441,17 @@ public:
         muteButton.onClick = [this] { track->setMute (! track->isMuted (false)); refresh(); };
         soloButton.onClick = [this] { track->setSolo (! track->isSolo (false)); refresh(); };
 
+        armButton.setClickingTogglesState (false);
+        armButton.onClick = [this]
+        {
+            if (auto rec = view.recorder)
+            {
+                rec->setArmed (*track, ! recording::isExplicitlyArmed (*track));
+                refresh();
+            }
+        };
+        addAndMakeVisible (armButton);
+
         dbLabel.setFont (fonts::mono (11.0f));
         dbLabel.setJustificationType (juce::Justification::centred);
         dbLabel.setColour (juce::Label::textColourId, colours::textMid);
@@ -425,6 +487,23 @@ public:
 
         muteButton.setToggleState (track->isMuted (false), juce::dontSendNotification);
         soloButton.setToggleState (track->isSolo (false), juce::dontSendNotification);
+
+        if (auto rec = view.recorder)
+        {
+            const bool armed = rec->isArmed (*track);
+            const bool autoArmed = armed && ! recording::isExplicitlyArmed (*track);
+
+            if (armButton.getToggleState() != armed || armButton.autoArmed != autoArmed)
+            {
+                armButton.autoArmed = autoArmed;
+                armButton.setToggleState (armed, juce::dontSendNotification);
+                armButton.repaint();
+            }
+
+            armButton.setTooltip (recordingui::armTooltip (*rec, *track));
+        }
+
+        armButton.setVisible (view.recorder != nullptr);
         pan.setColour (juce::Slider::rotarySliderFillColourId, trackColour (*track));
         updateDbLabel();
     }
@@ -479,8 +558,10 @@ public:
 
         auto mixer = mixerArea().reduced (10);
         auto buttons = mixer.removeFromBottom (22);
-        muteButton.setBounds (buttons.removeFromLeft (buttons.getWidth() / 2).reduced (2, 0));
-        soloButton.setBounds (buttons.reduced (2, 0));
+        const int third = buttons.getWidth() / 3;
+        muteButton.setBounds (buttons.removeFromLeft (third).reduced (2, 0));
+        soloButton.setBounds (buttons.removeFromLeft (third).reduced (2, 0));
+        armButton.setBounds (buttons.reduced (2, 0));
         mixer.removeFromBottom (6);
         dbLabel.setBounds (mixer.removeFromBottom (16));
         mixer.removeFromBottom (4);
@@ -549,6 +630,18 @@ private:
             t->edit.getUndoManager().beginNewTransaction ("Colore traccia");
             t->setColour (c);
         }));
+
+        if (auto rec = view.recorder)
+        {
+            m.addSubMenu ("Ingresso", recordingui::inputMenu (*rec, *t));
+            m.addItem ("Arma per la registrazione", true, recording::isExplicitlyArmed (*t),
+                       [t, r = juce::WeakReference<recording::Recorder> (rec)]
+                       {
+                           if (r != nullptr)
+                               r->setArmed (*t, ! recording::isExplicitlyArmed (*t));
+                       });
+        }
+
         m.addSeparator();
         m.addItem ("Elimina traccia", [t] { session::deleteTrack (*t); });
         m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this));
@@ -560,6 +653,7 @@ private:
     IconButton stopButton { "Ferma le clip della traccia", icons::stop() };
     juce::Slider volume, pan;
     FlatButton muteButton { "M", 11.0f }, soloButton { "S", 11.0f };
+    recordingui::ArmButton armButton;
     juce::Label dbLabel;
     LevelMeter meter;
 };
@@ -898,6 +992,12 @@ void SessionView::setEdit (te::Edit* e)
 
     if (edit != nullptr)
         selectTrack (te::getAudioTracks (*edit).getFirst());
+}
+
+void SessionView::setRecorder (recording::Recorder* r)
+{
+    recorder = r;
+    content->refresh();
 }
 
 te::AudioTrack* SessionView::getSelectedTrack() const

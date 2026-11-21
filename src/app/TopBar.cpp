@@ -35,34 +35,12 @@ TopBar::TopBar (te::Engine& e) : engine (e)
     redoButton.onClick = [this] { if (edit != nullptr) edit->redo(); };
 
     playButton.setActiveColour (colours::play);
-    playButton.onClick = [this]
-    {
-        if (edit == nullptr)
-            return;
+    playButton.onClick = [this] { if (onTogglePlay) onTogglePlay(); };
+    stopButton.onClick = [this] { if (onStop) onStop(); };
 
-        auto& t = edit->getTransport();
-
-        if (t.isPlaying())
-            t.stop (false, false);
-        else
-            t.play (false);
-    };
-
-    stopButton.onClick = [this]
-    {
-        if (edit == nullptr)
-            return;
-
-        auto& t = edit->getTransport();
-
-        if (t.isPlaying())
-            t.stop (false, false);
-        else
-            t.setPosition (te::TimePosition());
-    };
-
-    recordButton.setIconColour (colours::record);
-    recordButton.setEnabled (false);
+    recordButton.setIconColour (colours::record.withAlpha (0.7f));
+    recordButton.setActiveColour (colours::record);
+    recordButton.onClick = [this] { if (onRecord) onRecord(); };
 
     loopButton.setClickingTogglesState (false);
     loopButton.onClick = [this]
@@ -134,6 +112,7 @@ void TopBar::timerCallback()
                     + juce::String ((int) (bb.getFractionalBeats().inBeats() * 4.0) + 1);
 
         playButton.setToggleState (t.isPlaying(), juce::dontSendNotification);
+        recordButton.setToggleState (isRecording != nullptr && isRecording(), juce::dontSendNotification);
         loopButton.setToggleState (t.looping.get(), juce::dontSendNotification);
         metronomeButton.setToggleState (edit->clickTrackEnabled.get(), juce::dontSendNotification);
         undoButton.setEnabled (edit->getUndoManager().canUndo());

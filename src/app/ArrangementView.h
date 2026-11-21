@@ -10,6 +10,8 @@
 
 #include "Widgets.h"
 
+namespace sonora::recording { class Recorder; }
+
 namespace sonora
 {
 
@@ -32,6 +34,9 @@ public:
     ~ArrangementView() override;
 
     void setEdit (tracktion::Edit*);
+
+    /** Armamento delle tracce e registrazione in corso (puo' essere nullptr). */
+    void setRecorder (recording::Recorder* r)      { recorder = r; repaint(); }
 
     std::function<tracktion::AudioTrack*()> getSelectedTrack;
     std::function<void (tracktion::AudioTrack*)> onTrackSelected;
@@ -80,6 +85,10 @@ private:
     tracktion::Clip::Ptr selectedClip;
     std::map<tracktion::EditItemID, std::unique_ptr<tracktion::SmartThumbnail>> thumbnails;
 
+    juce::Rectangle<int> armArea (int laneIndex) const;
+    void showHeaderMenu (tracktion::AudioTrack&);
+
+    recording::Recorder* recorder = nullptr;
     double pixelsPerBeat = 24.0, viewStart = 0.0;
     bool needsFit = true; // l'adattamento aspetta di conoscere la larghezza vera
     int scrollY = 0, laneHeight = 64;

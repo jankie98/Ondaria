@@ -78,6 +78,25 @@ SlotState getSlotState (tracktion::ClipSlot&);
 /** Avanzamento (0..1) della clip in riproduzione, se sta suonando. */
 std::optional<float> getPlayProgress (tracktion::Clip&);
 
+/** Il prossimo punto di quantizzazione del lancio, sia come beat monotono (per le
+    clip) sia come tempo del progetto senza loop (per le registrazioni).
+    Vuoto se il trasporto e' fermo. */
+struct LaunchPoint
+{
+    tracktion::MonotonicBeat beat;
+    tracktion::TimePosition unloopedTime;
+};
+
+std::optional<LaunchPoint> nextLaunchPoint (tracktion::Edit&);
+
+/** Fa partire il trasporto dall'inizio della battuta corrente, se e' fermo. */
+void startTransportFromBar (tracktion::Edit&);
+
+/** I percorsi relativi dei file (campioni importati, registrazioni) sono scritti
+    rispetto al file del progetto: questa funzione li fa ritrovare nello stesso
+    modo. Da chiamare subito dopo aver creato o aperto un Edit. */
+void setUpFilePaths (tracktion::Edit&);
+
 /** Nomi dei valori di quantizzazione del lancio, nell'ordine di LaunchQType. */
 juce::StringArray getQuantisationNames();
 

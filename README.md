@@ -4,7 +4,7 @@ Sonora è una DAW open source per **Linux e Windows**, pensata per un flusso di 
 
 Il progetto è un'implementazione originale (codice, nome e grafica) e non contiene codice o risorse di altre DAW commerciali.
 
-> Stato: **in sviluppo** (fase 4 della roadmap). Ci sono la session view con clip e scene lanciate a tempo, l'arrangement con la linea del tempo, il piano roll, il mixer per traccia e i plugin di ogni formato. Registrazione, automazioni ed export sono i prossimi passi.
+> Stato: **in sviluppo** (fase 4 della roadmap). Ci sono la session view con clip e scene lanciate a tempo, l'arrangement con la linea del tempo, il piano roll, il mixer per traccia e i plugin di ogni formato. C'è la registrazione audio e MIDI, nell'arrangement e negli slot. Automazioni ed export sono i prossimi passi.
 
 ## Cosa c'è già
 
@@ -29,6 +29,11 @@ Il progetto è un'implementazione originale (codice, nome e grafica) e non conti
   - Ctrl+D duplica, Canc elimina, clic destro per il menu. Trascina file audio o MIDI dal browser o dal sistema per importarli nel punto giusto.
   - Clic sul righello per spostare la testina, Shift+trascina per impostare il loop. Ctrl+rotella per lo zoom, "Adatta" per vedere tutto il brano.
   - Se una traccia sta suonando le clip della session, il pulsante "Torna all'arrangement" la riporta alla linea del tempo.
+- **Registrazione:**
+  - Ogni traccia ha un ingresso (tutti gli ingressi MIDI, un ingresso audio o nessuno), scelto dal menu della traccia, e un pulsante di armamento accanto a M e S.
+  - La traccia selezionata con ingresso MIDI è armata in automatico (cerchio più tenue): la tastiera la suona e la registra subito.
+  - F9 o il pulsante rosso registra nell'arrangement sulle tracce armate.
+  - Session: sulle tracce armate gli slot vuoti mostrano un cerchio. Cliccalo per registrare dal prossimo punto di quantizzazione; cliccalo di nuovo per fermarti a tempo: la clip parte subito in loop.
 - **Piano roll:** clic per scrivere una nota (trascina per decidere la durata), trascina per spostare o allungare, doppio clic per cancellare; velocity in basso, griglia da 1/4 a 1/32 e terzine, quantizzazione, frecce per trasporre (Shift per l'ottava).
 - **Mixer per traccia:** volume, pan, mute, solo e meter; volume e meter del master.
 - **Barra superiore:** trasporto, posizione, tempo (trascina o doppio clic per scriverlo), metro, quantizzazione del lancio, loop, metronomo, undo/redo.
@@ -49,6 +54,7 @@ Il progetto è un'implementazione originale (codice, nome e grafica) e non conti
 | Ctrl+Z, Ctrl+Shift+Z | Annulla, ripeti |
 | Ctrl+N, Ctrl+O, Ctrl+S, Ctrl+Shift+S | Nuovo, apri, salva, salva con nome |
 | Ctrl+F | Cerca nel browser |
+| F9 | Registra nell'arrangement |
 | Ctrl+D | Duplica la clip (arrangement) |
 | Canc | Elimina la clip o le note selezionate |
 
