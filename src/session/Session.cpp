@@ -8,6 +8,7 @@
 */
 
 #include "Session.h"
+#include "Racks.h"
 #include "Warp.h"
 
 namespace te = tracktion;
@@ -419,6 +420,8 @@ std::unique_ptr<te::Edit> loadEdit (te::Engine& engine, const juce::File& file)
 
     if (! state.isValid())
         return {};
+
+    racks::removeUnusedRacks (state);
 
     return te::Edit::createEdit ({ engine, state, id, te::Edit::forEditing, nullptr,
                                    te::Edit::getDefaultNumUndoLevels(), [file] { return file; }, {} });

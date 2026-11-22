@@ -113,6 +113,7 @@ MainComponent::MainComponent (te::Engine& e)
     addChildComponent (pianoRoll);
     addChildComponent (audioEditor);
     audioEditor.onStatus = [this] (const juce::String& m) { status (m); };
+    deviceChain.onStatus = [this] (const juce::String& m) { status (m); };
     setDetail (Detail::devices);
     addChildComponent (palette);
     addChildComponent (exportPanel);
@@ -618,6 +619,8 @@ bool MainComponent::keyPressed (const juce::KeyPress& key)
     if (is ('n'))                          { newProject(); return true; }
     if (is ('k'))                          { showCommandPalette(); return true; }
     if (is ('f'))                          { browser.focusSearch(); return true; }
+    if (is ('g') && mods.isShiftDown())   { setDetail (Detail::devices); deviceChain.ungroupSelection(); return true; }
+    if (is ('g'))                          { setDetail (Detail::devices); deviceChain.groupSelection(); return true; }
 
     if (is ('t'))
     {
@@ -819,6 +822,8 @@ void MainComponent::showCommandPalette()
     add ("Impostazioni audio e MIDI", {}, [this] { showAudioSettings(); });
     add ("Gestisci e scansiona plugin", {}, [this] { browser.openPluginManager(); });
     add ("Cerca nel browser", "Ctrl+F", [this] { browser.focusSearch(); });
+    add ("Raggruppa i device in un rack", "Ctrl+G", [this] { setDetail (Detail::devices); deviceChain.groupSelection(); });
+    add ("Separa il rack", "Ctrl+Maiusc+G", [this] { setDetail (Detail::devices); deviceChain.ungroupSelection(); });
 
     for (auto& d : browser.getAllDevices())
         c.push_back ({ "Aggiungi " + d.name, d.pluginFormatName, {}, [this, d] { insertDevice (d); } });
@@ -840,6 +845,13 @@ void MainComponent::insertDevice (const juce::PluginDescription& desc)
     if (freeze::isFrozen (*track))
     {
         status (freezeui::frozenNotice (*track));
+        return;
+    }
+
+    if (desc.pluginFormatName == PluginBrowserComponent::builtInFormat && desc.fileOrIdentifier == PluginBrowserComponent::rackType)
+    {
+        setDetail (Detail::devices);
+        deviceChain.addEmptyRack();
         return;
     }
 
@@ -868,13 +880,21 @@ void MainComponent::insertDevice (const juce::PluginDescription& desc)
     }
 
     edit->getUndoManager().beginNewTransaction ("Aggiungi " + desc.name);
-    track->pluginList.insertPlugin (plugin, index, nullptr);
+
+    // Se e' scelta una catena di un rack, il device va li'
+    auto where = deviceChain.getInsertTargetName();
+
+    if (! deviceChain.insertIntoTarget (plugin))
+    {
+        where = track->getName();
+        track->pluginList.insertPlugin (plugin, index, nullptr);
+    }
 
     if (auto external = dynamic_cast<te::ExternalPlugin*> (plugin.get());
         external != nullptr && external->getAudioPluginInstance() == nullptr)
         status ("Errore nel caricare " + desc.name + ": " + external->getLoadError());
     else
-        status ("Aggiunto " + desc.name + " a " + track->getName());
+        status ("Aggiunto " + desc.name + " a " + where);
 }
 
 //==============================================================================

@@ -170,4 +170,10 @@ private:
     int peakHold[2] { 0, 0 };
 };
 
+//==============================================================================
+/** Casella di testo sopra area (coordinate di parent) per rinominare: Invio o clic
+    fuori conferma, Esc annulla. */
+void showRenameBox (juce::Component& parent, juce::Rectangle<int> area, const juce::String& current,
+                    std::function<void (const juce::String&)> onDone);
+
 } // namespace sonora

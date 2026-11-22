@@ -49,33 +49,6 @@ namespace
         return n.isNotEmpty() ? n : "Scena " + juce::String (index + 1);
     }
 
-    void showRenameBox (juce::Component& parent, juce::Rectangle<int> area, const juce::String& current,
-                        std::function<void (const juce::String&)> onDone)
-    {
-        auto* ed = new juce::TextEditor();
-        ed->setFont (fonts::ui (12.5f, fonts::Weight::medium));
-        ed->setText (current, false);
-        ed->selectAll();
-        ed->setBounds (area);
-        parent.addAndMakeVisible (ed);
-        ed->grabKeyboardFocus();
-
-        auto finish = [ed, onDone] (bool apply)
-        {
-            if (apply && ed->getText().trim().isNotEmpty())
-                onDone (ed->getText().trim());
-
-            juce::MessageManager::callAsync ([safe = juce::Component::SafePointer<juce::TextEditor> (ed)]
-            {
-                delete safe.getComponent();
-            });
-        };
-
-        ed->onReturnKey = [finish] { finish (true); };
-        ed->onEscapeKey = [finish] { finish (false); };
-        ed->onFocusLost = [finish] { finish (true); };
-    }
-
     juce::PopupMenu colourMenu (std::function<void (juce::Colour)> onPick)
     {
         juce::PopupMenu m;
