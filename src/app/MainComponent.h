@@ -12,6 +12,7 @@
 #include "CommandPalette.h"
 #include "ExportPanel.h"
 #include "DeviceChainComponent.h"
+#include "AudioClipEditor.h"
 #include "PianoRoll.h"
 #include "PluginBrowserComponent.h"
 #include "SessionView.h"
@@ -94,6 +95,8 @@ private:
     ArrangementView arrangement;
     DeviceChainComponent deviceChain;
     PianoRoll pianoRoll;
+    AudioClipEditor audioEditor;
+    double lastTempo = 0.0;
     Detail detail = Detail::devices;
     FlatButton devicesTab { "Device", 12.0f }, clipTab { "Clip", 12.0f };
     CommandPalette palette;

@@ -1,0 +1,175 @@
+diff --git a/modules/tracktion_engine/playback/graph/tracktion_WaveNode.cpp b/modules/tracktion_engine/playback/graph/tracktion_WaveNode.cpp
+index 1993f02782b..45bb04d0469 100644
+--- a/modules/tracktion_engine/playback/graph/tracktion_WaveNode.cpp
++++ b/modules/tracktion_engine/playback/graph/tracktion_WaveNode.cpp
+@@ -610,7 +610,7 @@ public:
+         setSpeedAndPitch (playbackSpeedRatio, semitonesShift);
+         inputFifo.reset();
+         outputFifo.reset();
+-        primeStretcher();
++        needsPriming = true; // primed on the first read, at the speed it will run at
+     }
+ 
+     SampleCount getPosition() override
+@@ -630,7 +630,7 @@ public:
+         setSpeedAndPitch (playbackSpeedRatio, semitonesShift);
+         inputFifo.reset();
+         outputFifo.reset();
+-        primeStretcher();
++        needsPriming = true; // primed on the first read, at the speed it will run at
+     }
+ 
+     void setPosition (TimePosition t) override
+@@ -660,6 +660,23 @@ public:
+         setSpeedAndPitch (playbackSpeedRatio, semitonesShift);
+     }
+ 
++    /** Jumps to a new speed and re-primes at the current position. A stretcher's latency
++        depends on its speed, so a step change (e.g. crossing a warp marker) would otherwise
++        shift everything after it by the difference.
++    */
++    void setSpeedAndRealign (double speedRatio)
++    {
++        if (playbackSpeedRatio == speedRatio)
++            return;
++
++        source->setPosition (getReadPosition());
++        timeStretcher.reset();
++        setSpeedAndPitch (speedRatio, semitonesShift);
++        inputFifo.reset();
++        outputFifo.reset();
++        needsPriming = true;
++    }
++
+     void setSpeedAndPitch (double speedRatio, double semitones)
+     {
+         playbackSpeedRatio = speedRatio;
+@@ -672,6 +689,12 @@ public:
+     bool readSamples (choc::buffer::ChannelArrayView<float>& destBuffer) override
+     {
+         assert (numChannels == (int) destBuffer.getNumChannels());
++
++        // The speed is only known once the node has set it, after construction or a
++        // reposition. Priming at another speed leaves the stretcher's latency counted at
++        // the wrong rate and the output lands early or late.
++        if (std::exchange (needsPriming, false))
++            primeStretcher();
+         const auto numFramesToDo = destBuffer.getNumFrames();
+ 
+         for (;;)
+@@ -696,6 +719,7 @@ public:
+     static constexpr int chunkSize = 256;
+     const int numChannels;
+     int latencySamples = 0;
++    bool needsPriming = false;
+     TimeStretcher timeStretcher;
+     AudioFifo inputFifo { numChannels, chunkSize }, outputFifo { numChannels, chunkSize };
+     double playbackSpeedRatio = 1.0, semitonesShift = 0.0, readPosition = 0.0;
+@@ -735,6 +759,8 @@ public:
+     // to handle the stretcher's startup latency locally
+     void primeStretcher()
+     {
++        latencySamples = timeStretcher.getLatencySamples(); // can depend on the speed
++
+         if (latencySamples <= 0)
+             return;
+ 
+@@ -746,7 +772,8 @@ public:
+         // The stretcher's output lags its input by latencySamples so to line the next
+         // output frame up with readPosition, the frames between backupPos and
+         // readPosition have to be discarded as well as the latency region itself
+-        const auto numToDiscard = static_cast<int> (position - backupPos) + latencySamples;
++        // (the backed-up source frames come out at the playback speed)
++        const auto numToDiscard = juce::roundToInt ((double) (position - backupPos) / playbackSpeedRatio) + latencySamples;
+         int outputDiscarded = 0;
+ 
+         while (outputDiscarded < numToDiscard)
+@@ -784,7 +811,7 @@ public:
+         source->setPosition (getReadPosition());
+         timeStretcher.reset();
+         setSpeedAndPitch (playbackSpeedRatio, semitonesShift);
+-        primeStretcher();
++        needsPriming = true; // primed on the first read, at the speed it will run at
+     }
+ 
+     SampleCount getPosition() override
+@@ -802,7 +829,7 @@ public:
+         source->setPosition (t);
+         timeStretcher.reset();
+         setSpeedAndPitch (playbackSpeedRatio, semitonesShift);
+-        primeStretcher();
++        needsPriming = true; // primed on the first read, at the speed it will run at
+     }
+ 
+     void setPosition (TimePosition t) override
+@@ -844,6 +871,12 @@ public:
+     bool readSamples (choc::buffer::ChannelArrayView<float>& destBuffer) override
+     {
+         assert (numChannels == (int) destBuffer.getNumChannels());
++
++        // The speed is only known once the node has set it, after construction or a
++        // reposition. Priming at another speed leaves the stretcher's latency counted at
++        // the wrong rate and the output lands early or late.
++        if (std::exchange (needsPriming, false))
++            primeStretcher();
+         const auto numFramesToDo = static_cast<int> (destBuffer.getNumFrames());
+         int startFrame = 0;
+ 
+@@ -884,6 +917,7 @@ public:
+ 
+     const int numChannels, chunkSize = 1024;
+     int latencySamples = 0;
++    bool needsPriming = false;
+     ReadAheadTimeStretcher timeStretcher { 3 };
+     double playbackSpeedRatio = 1.0, semitonesShift = 0.0, readPosition = 0.0;
+ 
+@@ -912,6 +946,8 @@ public:
+     // to handle the stretcher's startup latency locally
+     void primeStretcher()
+     {
++        latencySamples = timeStretcher.getLatencySamples(); // can depend on the speed
++
+         if (latencySamples <= 0)
+             return;
+ 
+@@ -922,7 +958,8 @@ public:
+         // The stretcher's output lags its input by latencySamples so to line the next
+         // output frame up with readPosition, the frames between backupPos and
+         // readPosition have to be discarded as well as the latency region itself
+-        const auto numToDiscard = static_cast<int> (position - backupPos) + latencySamples;
++        // (the backed-up source frames come out at the playback speed)
++        const auto numToDiscard = juce::roundToInt ((double) (position - backupPos) / playbackSpeedRatio) + latencySamples;
+         int outputDiscarded = 0;
+ 
+         while (outputDiscarded < numToDiscard)
+@@ -1033,10 +1070,12 @@ public:
+ 
+     bool readSamples (choc::buffer::ChannelArrayView<float>& destBuffer) override
+     {
+-        const auto unwarpedStartTime = TimePosition::fromSamples (readPosition, getSampleRate());
+-        const auto ratio = warpTime (map, unwarpedStartTime).stretchRatio;
++        // The ratio in the middle of the block: at the very start of the first marker
++        // warpTime() reports 1, which would prime the stretcher at the wrong speed
++        const auto unwarpedMidTime = TimePosition::fromSamples (readPosition + (SampleCount) destBuffer.getNumFrames() / 2, getSampleRate());
++        const auto ratio = warpTime (map, unwarpedMidTime).stretchRatio;
+ 
+-        reader->setSpeed (ratio);
++        reader->setSpeedAndRealign (ratio);
+         readPosition += (SampleCount) destBuffer.getNumFrames();
+ 
+         return reader->readSamples (destBuffer);
+diff --git a/modules/tracktion_engine/timestretch/tracktion_TimeStretch.cpp b/modules/tracktion_engine/timestretch/tracktion_TimeStretch.cpp
+index 26fd3d15d2e..cdc94d980f0 100644
+--- a/modules/tracktion_engine/timestretch/tracktion_TimeStretch.cpp
++++ b/modules/tracktion_engine/timestretch/tracktion_TimeStretch.cpp
+@@ -963,7 +963,9 @@ struct SignalsmithStretcher  : public TimeStretcher::Stretcher
+ 
+     int getLatencySamples() const override
+     {
+-        return stretch.inputLatency() + stretch.outputLatency();
++        // Measured: away from speed 1 about half of the output latency stretches along
++        // with the audio (the synthesis window is centred on the analysis one)
++        return stretch.inputLatency() + juce::roundToInt (stretch.outputLatency() * (1.0f + speedRatio) * 0.5f);
+     }
+ 
+ private:

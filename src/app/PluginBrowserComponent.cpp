@@ -202,8 +202,14 @@ void PluginBrowserComponent::rebuildRows()
     if (filter == Filter::samples || (filter == Filter::all && query.isNotEmpty()))
     {
         // In "Tutto" i campioni compaiono solo cercando, per non affollare la lista.
-        auto files = sampleFolder.findChildFiles (juce::File::findFiles, true,
-                                                  juce::String (te::soundFileExtensions) + ";" + te::midiFileExtensions);
+        // Le estensioni del motore sono "wav;aiff;...": per la ricerca servono "*.wav;*.aiff;..."
+        juce::StringArray patterns;
+        patterns.addTokens (juce::String (te::soundFileExtensions) + ";" + te::midiFileExtensions, ";", {});
+
+        for (auto& p : patterns)
+            p = "*." + p;
+
+        auto files = sampleFolder.findChildFiles (juce::File::findFiles, true, patterns.joinIntoString (";"));
         files.sort();
 
         for (auto& f : files)

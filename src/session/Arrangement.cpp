@@ -5,6 +5,7 @@
 */
 
 #include "Arrangement.h"
+#include "Warp.h"
 #include "Session.h"
 
 namespace te = tracktion;
@@ -93,6 +94,7 @@ te::Clip* createClipFromFile (te::AudioTrack& t, te::BeatPosition start, const j
         if (clip == nullptr)
             return nullptr;
 
+        warp::prepareImported (*clip);
         clip->setColour (t.getColour());
         return clip.get();
     }

@@ -116,13 +116,28 @@ struct EngineIntegrationTests final : public juce::UnitTest
 EngineIntegrationTests engineIntegrationTests;
 } // namespace
 
-int main()
+int main (int argc, char** argv)
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
 
     juce::UnitTestRunner runner;
     runner.setAssertOnFailure (false);
-    runner.runTestsInCategory ("Sonora");
+
+    // Con un argomento gira solo il gruppo con quel nome (es. "Warp")
+    if (argc > 1)
+    {
+        juce::Array<juce::UnitTest*> chosen;
+
+        for (auto* t : juce::UnitTest::getTestsInCategory ("Sonora"))
+            if (t->getName() == juce::String (argv[1]))
+                chosen.add (t);
+
+        runner.runTests (chosen);
+    }
+    else
+    {
+        runner.runTestsInCategory ("Sonora");
+    }
 
     int failures = 0;
 
