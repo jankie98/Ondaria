@@ -8,6 +8,7 @@
 
 #include "MainComponent.h"
 #include "OndariaIcons.h"
+#include "PluginIsolation.h"
 #include "SonoraBehaviour.h"
 #include "Settings.h"
 #include "Theme.h"
@@ -65,11 +66,15 @@ public:
         addAllPluginFormats (pm.pluginFormatManager);
         pm.knownPluginList.setCustomScanner (std::make_unique<IsolatedPluginScanner>());
 
+        // Plugin isolati: quelli scelti (o tutti) si caricano in un processo separato
+        isolation::install (pm);
+
         // Il tema scelto l'ultima volta, prima di creare la finestra
         if (auto settings = openUiSettings (*engine))
         {
             theme::apply (theme::load (*settings));
             applyUiScale (loadUiScale (*settings));
+            loadSandboxSettings (*settings);
         }
 
         mainWindow = std::make_unique<MainWindow> ("Ondaria " + getApplicationVersion(), *engine);

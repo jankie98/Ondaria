@@ -11,6 +11,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "host/PluginFormats.h"
+#include "host/SandboxedPlugin.h"
 #include "host/ScanProtocol.h"
 
 #include <iostream>
@@ -36,6 +37,17 @@ int main (int argc, char* argv[])
     SetErrorMode (SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
     _set_abort_behavior (0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
    #endif
+
+    // Modalita' ospite: un plugin isolato che suona per la DAW (vedi SandboxedPlugin.h)
+    {
+        juce::StringArray rest;
+
+        for (int i = 1; i < argc; ++i)
+            rest.add (juce::String::fromUTF8 (argv[i]));
+
+        if (sonora::sandbox::runHostIfRequested (rest.joinIntoString (" ")))
+            return 0;
+    }
 
     juce::ArgumentList args (argc, argv);
 

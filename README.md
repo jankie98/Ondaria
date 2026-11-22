@@ -66,6 +66,10 @@ Il progetto è un'implementazione originale (codice, nome e grafica) e non conti
   - Ctrl+G mette in un rack i device selezionati (clic sul titolo, Maiusc per più di uno) o tutti quelli della traccia; Ctrl+Maiusc+G lo separa se ha una sola catena. "Rack" nel browser ne aggiunge uno vuoto.
   - Cliccando una catena si vedono i suoi device accanto al rack, e i device aggiunti dal browser finiscono lì.
   - Otto macro: clic destro su una manopola di un device del rack, "Assegna alla macro". Dal clic destro sulla macro si rinomina e si sceglie l'intervallo di ogni parametro (anche al contrario).
+- **Plugin in un processo separato:** un plugin instabile può girare isolato, così se va in crash o si blocca muore solo il suo processo. Ondaria continua a suonare, il device tace e la barra in basso avvisa; lo stato resta l'ultimo buono, quindi il progetto non perde niente.
+  - Clic destro sul device, "Esegui in un processo separato", oppure dal menu principale "Plugin in un processo separato": nessuno, solo quelli scelti (predefinito) o tutti.
+  - Un punto accanto al formato indica i device isolati (rosso se il processo è morto). "Riavvia il plugin" lo ricarica con l'ultimo stato.
+  - L'audio passa in memoria condivisa, un blocco alla volta; la finestra del plugin si apre a parte.
 - **Tastiera MIDI su schermo** per suonare gli strumenti anche senza controller.
 - **Registrazione che si vede mentre suoni:** durante la registrazione la clip rossa mostra subito la forma d'onda dell'audio in arrivo, o le note MIDI che stai suonando (quelle tenute si allungano in tempo reale), sia nell'arrangement sia negli slot della session view.
 - **Zoom che cambia il dettaglio:** con la griglia "auto" la quantizzazione segue lo zoom (da gruppi di battute fino a 1/32) e il pulsante mostra quella in uso. Il righello aggiunge i movimenti ("3.2") quando c'è spazio; le clip molto strette diventano blocchi di colore e, zoomando, le note mostrano la velocity.
@@ -135,8 +139,8 @@ cmake --build build --config Release
 ```
 src/app/       interfaccia: tema, barra superiore, session view, browser, catena di device, palette comandi
 src/session/   logica della session view (clip, scene, lancio quantizzato), separata dall'interfaccia
-src/host/      host dei plugin: formato CLAP, registro dei formati, scansione isolata
-src/scanner/   ondaria-plugin-scanner, il processo che scansiona un plugin alla volta
+src/host/      host dei plugin: formato CLAP, registro dei formati, scansione e plugin isolati
+src/scanner/   ondaria-plugin-scanner, il processo che scansiona un plugin alla volta o ospita un plugin isolato
 tests/         test automatici e plugin CLAP di prova
 external/      sottomoduli: Tracktion Engine (con JUCE) e SDK CLAP
 docs/          architettura e roadmap

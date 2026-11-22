@@ -17,6 +17,7 @@
 #include "PluginBrowserComponent.h"
 #include "SessionView.h"
 #include "TopBar.h"
+#include "host/SandboxedPlugin.h"
 #include "session/Automation.h"
 #include "session/Capture.h"
 #include "session/Recording.h"
@@ -65,6 +66,8 @@ private:
     void togglePerformance();
     int browserWidth() const;
     juce::PopupMenu scaleMenu();
+    juce::PopupMenu isolationMenu();
+    void setIsolationPolicy (sandbox::Policy);
     void setUiScale (float);
     void showCommandPalette();
     void setView (TopBar::View);

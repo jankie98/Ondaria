@@ -8,6 +8,8 @@
 
 #include <tracktion_engine/tracktion_engine.h>
 
+#include "host/SandboxedPlugin.h"
+
 namespace sonora
 {
 
@@ -29,6 +31,26 @@ inline float loadUiScale (juce::PropertySet& p)
 inline void applyUiScale (float scale)
 {
     juce::Desktop::getInstance().setGlobalScaleFactor (scale);
+}
+
+/** Plugin isolati: quali far girare in un processo separato. */
+inline void loadSandboxSettings (juce::PropertySet& p)
+{
+    const int policy = p.getIntValue ("isolamentoPlugin", (int) sandbox::Policy::chosen);
+    sandbox::setPolicy ((sandbox::Policy) juce::jlimit (0, 2, policy));
+    auto chosen = juce::StringArray::fromLines (p.getValue ("pluginIsolati"));
+    chosen.removeEmptyStrings();
+    sandbox::setChosenPlugins (chosen);
+}
+
+inline void saveSandboxSettings (tracktion::Engine& e)
+{
+    if (auto settings = openUiSettings (e))
+    {
+        settings->setValue ("isolamentoPlugin", (int) sandbox::getPolicy());
+        settings->setValue ("pluginIsolati", sandbox::getChosenPlugins().joinIntoString ("\n"));
+        settings->saveIfNeeded();
+    }
 }
 
 } // namespace sonora

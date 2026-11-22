@@ -10,6 +10,7 @@
 
 #include <atomic>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 
@@ -170,8 +171,13 @@ const char* const features[] = { CLAP_PLUGIN_FEATURE_AUDIO_EFFECT, CLAP_PLUGIN_F
 const clap_plugin_descriptor_t descriptor
 {
     CLAP_VERSION_INIT,
+   #ifdef SONORA_TEST_CRASH_ON_PROCESS
+    "org.sonora.test-crash-on-process",
+    "Test Crash",
+   #else
     "org.sonora.test-gain",
     "Test Gain",
+   #endif
     "Sonora",
     "https://github.com/jankie98",
     "", "",
@@ -201,6 +207,12 @@ const clap_plugin_t* createPlugin (const clap_host_t* host)
 
         for (uint32_t i = 0; i < proc->in_events->size (proc->in_events); ++i)
             applyEvent (t, proc->in_events->get (proc->in_events, i), proc->out_events);
+
+       #ifdef SONORA_TEST_CRASH_ON_PROCESS
+        // Variante per i test dei plugin isolati: con il gain oltre 1,5 va in crash
+        if (t.gain > 1.5)
+            std::abort();
+       #endif
 
         const auto& in = proc->audio_inputs[0];
         auto& out = proc->audio_outputs[0];

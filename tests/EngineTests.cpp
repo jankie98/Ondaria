@@ -52,10 +52,18 @@ struct EngineIntegrationTests final : public juce::UnitTest
 
         while (scanner.scanNextFile (true, name)) {}
 
-        expectEquals (pm.knownPluginList.getNumTypes(), 1);
+        // Nella cartella ci sono Test Gain, la sua variante che va in crash mentre suona
+        // (si scansiona senza problemi) e il plugin che va in crash appena caricato
+        expectEquals (pm.knownPluginList.getNumTypes(), 2);
         expect (pm.knownPluginList.getBlacklistedFiles().contains (crashPluginFile.getFullPathName()));
 
-        auto types = pm.knownPluginList.getTypes();
+        juce::Array<juce::PluginDescription> types;
+
+        for (const auto& t : pm.knownPluginList.getTypes())
+            if (t.name == "Test Gain")
+                types.add (t);
+
+        expectEquals (types.size(), 1);
 
         if (types.size() != 1)
             return;

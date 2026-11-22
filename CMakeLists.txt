@@ -95,6 +95,11 @@ set (SONORA_HOST_SOURCES
     src/host/PluginFormats.h
     src/host/IsolatedPluginScanner.cpp
     src/host/IsolatedPluginScanner.h
+    src/host/SandboxedPlugin.cpp
+    src/host/SandboxedPlugin.h
+    src/host/SandboxProtocol.h
+    src/host/SharedMemory.cpp
+    src/host/SharedMemory.h
     src/host/ScanProtocol.h)
 list (TRANSFORM SONORA_HOST_SOURCES PREPEND "${CMAKE_SOURCE_DIR}/" OUTPUT_VARIABLE SONORA_HOST_SOURCES_ABS)
 
@@ -179,6 +184,7 @@ target_sources (Sonora PRIVATE
     src/app/ExportPanel.cpp
     src/app/ExportPanel.h
     src/app/FreezeUI.h
+    src/app/PluginIsolation.h
     src/app/TaskOverlay.h
     src/app/Settings.h
     src/app/CommandPalette.h
